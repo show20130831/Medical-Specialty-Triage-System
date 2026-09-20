@@ -10,7 +10,7 @@ This repository is being built incrementally to practice software development th
 
 ## Local Setup
 
-Requirements: Python 3.10 or newer with pip and venv support. Local verification used Windows and Python 3.10.9; other Python versions and operating systems have not been verified yet.
+Requirements: Python 3.10 or newer with pip and venv support. Local verification used Windows and Python 3.10.9. GitHub Actions also passed installation, endpoint testing, and dependency checks on Ubuntu and Windows with Python 3.10; other Python versions have not been verified.
 
 Run the following commands from the repository root in PowerShell:
 
@@ -65,7 +65,27 @@ The current implementation was verified on Windows with Python 3.10.9:
 | Live HTTP requests to `/docs` and `/openapi.json` | HTTP 200; documentation and health route confirmed |
 | Manual browser verification | Health response and Swagger UI execution confirmed |
 
-The two test warnings concern deprecated HTTPX usage in Starlette's test client and the `anyio.abc.BlockingPortal` alias. They did not cause test failures and have not been suppressed. Warning counts may change as transitive dependencies change. CI verification has not been added yet.
+The two test warnings concern deprecated HTTPX usage in Starlette's test client and the `anyio.abc.BlockingPortal` alias. They did not cause test failures and have not been suppressed. Warning counts may change as transitive dependencies change. Remote CI verification passed on Ubuntu and Windows; see the recorded run below.
+
+## Continuous Integration
+
+The [API CI workflow](.github/workflows/ci.yml) is configured to run on pull requests targeting `main` and pushes to `main`. A push to a feature branch without an open pull request does not trigger this workflow.
+
+Each run uses separate GitHub-hosted Ubuntu and Windows runners with Python 3.10. Each job checks out the code, sets up Python, installs the project with its test dependencies, runs pytest, and checks dependency compatibility with `pip check`. Model weights and medical data are not required.
+
+The workflow grants read-only repository contents access and does not deploy or publish packages. A failed installation, test, or dependency check fails the job. Each job has a 15-minute timeout; failure in one operating system job does not cancel the other.
+
+### View Results
+
+After the workflow is pushed and a pull request is opened:
+
+1. Open the pull request's **Checks** tab, or the repository's **Actions** tab and select **API CI**.
+2. Check both jobs: `API tests (ubuntu-latest, Python 3.10)` and `API tests (windows-latest, Python 3.10)`.
+3. Open a job and expand the relevant step to inspect its output when a check fails.
+
+**Verification status:** Both Python 3.10 jobs passed installation, pytest, and `pip check` in the [first GitHub Actions run](https://github.com/show20130831/Medical-Specialty-Triage-System/actions/runs/35526840220) for commit `04bc25c`. Local YAML parsing and structure checks also passed. This records that specific run; use the latest PR checks to assess subsequent commits.
+
+This change does not configure required status checks in branch protection. Those checks will be selected separately after the workflow has run successfully.
 
 ## Planned Scope
 
