@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools==78.1.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medical-specialty-triage-system"
+version = "0.1.0"
+description = "A description-based medical specialty classification service."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi==0.141.1",
+    "uvicorn==0.53.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest==8.4.2",
+    "httpx==0.28.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["triage_system*"]
+namespaces = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
