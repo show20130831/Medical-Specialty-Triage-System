@@ -10,7 +10,7 @@ This repository is being built incrementally to practice software development th
 
 ## Local Setup
 
-Requirements: Python 3.10 or newer with pip and venv support. Local verification used Windows and Python 3.10.9; other Python versions and operating systems have not been verified yet.
+Requirements: Python 3.10 or newer with pip and venv support. Local verification used Windows and Python 3.10.9. GitHub Actions also passed installation, endpoint testing, and dependency checks on Ubuntu and Windows with Python 3.10; other Python versions have not been verified.
 
 Run the following commands from the repository root in PowerShell:
 
@@ -65,7 +65,7 @@ The current implementation was verified on Windows with Python 3.10.9:
 | Live HTTP requests to `/docs` and `/openapi.json` | HTTP 200; documentation and health route confirmed |
 | Manual browser verification | Health response and Swagger UI execution confirmed |
 
-The two test warnings concern deprecated HTTPX usage in Starlette's test client and the `anyio.abc.BlockingPortal` alias. They did not cause test failures and have not been suppressed. Warning counts may change as transitive dependencies change. Remote CI verification is pending; see the workflow details below.
+The two test warnings concern deprecated HTTPX usage in Starlette's test client and the `anyio.abc.BlockingPortal` alias. They did not cause test failures and have not been suppressed. Warning counts may change as transitive dependencies change. Remote CI verification passed on Ubuntu and Windows; see the recorded run below.
 
 ## Continuous Integration
 
@@ -83,7 +83,7 @@ After the workflow is pushed and a pull request is opened:
 2. Check both jobs: `API tests (ubuntu-latest, Python 3.10)` and `API tests (windows-latest, Python 3.10)`.
 3. Open a job and expand the relevant step to inspect its output when a check fails.
 
-**Verification status:** The workflow has passed local YAML parsing and structure checks only. It has not yet been executed on GitHub Actions; successful CI runs on both operating systems are still required to validate this setup.
+**Verification status:** Both Python 3.10 jobs passed installation, pytest, and `pip check` in the [first GitHub Actions run](https://github.com/show20130831/Medical-Specialty-Triage-System/actions/runs/35526840220) for commit `04bc25c`. Local YAML parsing and structure checks also passed. This records that specific run; use the latest PR checks to assess subsequent commits.
 
 This change does not configure required status checks in branch protection. Those checks will be selected separately after the workflow has run successfully.
 
