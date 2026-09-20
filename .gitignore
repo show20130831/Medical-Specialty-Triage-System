@@ -1,0 +1,53 @@
+# Python environments and generated files
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Test and lint caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local model assets and medical datasets
+/models/
+/data/
+/outputs/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.csv
+*.tsv
+*.parquet
+*.zip
+
+# Private training notebooks
+/notebooks/
+/colab/
+*.ipynb
+.ipynb_checkpoints/
+
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+/secrets/
+/credentials/
+*.pem
+*.key
+
+# Local editor, assistant, and operating system files
+.vscode/
+.idea/
+.codex/
+.claude/
+.DS_Store
+Thumbs.db
