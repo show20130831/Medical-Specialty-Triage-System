@@ -32,6 +32,7 @@ The editable installation uses the source files in `src/`. The `test` extra inst
 Keep the terminal open while using the service. Press `Ctrl+C` in that terminal to stop it. The service listens only on the local machine.
 
 - Health endpoint: <http://127.0.0.1:8000/health>
+- Readiness endpoint: <http://127.0.0.1:8000/ready>
 - Interactive API documentation: <http://127.0.0.1:8000/docs>
 - Browser interface: <http://127.0.0.1:8000/>
 
@@ -44,6 +45,8 @@ Keep the terminal open while using the service. Press `Ctrl+C` in that terminal 
 In `/docs`, expand `GET /health`, select **Try it out**, then **Execute**. Verify that the server response is HTTP `200` with the body above.
 
 The health endpoint reports that the API is responding. It does not check model readiness and does not load model weights.
+
+`GET /ready` loads the configured local model once and returns HTTP `200` with `{"status":"ready"}` when predictions can be served. If `TRIAGE_MODEL_DIR` is missing or the export cannot load, it returns HTTP `503` with an actionable error. This distinction is intended for local checks and future deployment probes.
 
 Open the browser interface at `/` after setting `TRIAGE_MODEL_DIR`. Enter an English medical description and select **Classify description**. The page uses the same origin as the API, so no separate frontend server or CORS configuration is needed for this local prototype.
 
