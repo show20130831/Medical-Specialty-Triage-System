@@ -4,7 +4,7 @@ A web application in development for classifying English medical descriptions in
 
 ## Project Status
 
-A minimal FastAPI service with a health endpoint is implemented and has been verified locally. Model inference and the web interface are planned but are not implemented yet.
+A minimal FastAPI service with a health endpoint is implemented and has been verified locally. A separate offline CPU model loader is implemented and has been verified with the local export. Prediction and the web interface are not implemented yet.
 
 This repository is being built incrementally to practice software development through small features, tests, and pull requests.
 
@@ -53,9 +53,9 @@ The health endpoint reports that the API is responding. It does not check model 
 
 The endpoint test checks the HTTP status code and JSON response using `TestClient`. It does not require a running Uvicorn server, model weights, or medical data. `-B` disables Python bytecode writes; `-p no:cacheprovider` disables pytest's cache plugin.
 
-### Local Verification
+### Health Endpoint Verification
 
-The current implementation was verified on Windows with Python 3.10.9:
+The health endpoint implementation was verified on Windows with Python 3.10.9:
 
 | Check | Result |
 | --- | --- |
@@ -85,7 +85,7 @@ After the workflow is pushed and a pull request is opened:
 
 **Verification status:** Both Python 3.10 jobs passed installation, pytest, and `pip check` in the [first GitHub Actions run](https://github.com/show20130831/Medical-Specialty-Triage-System/actions/runs/35526840220) for commit `04bc25c`. Local YAML parsing and structure checks also passed. This records that specific run; use the latest PR checks to assess subsequent commits.
 
-This change does not configure required status checks in branch protection. Those checks will be selected separately after the workflow has run successfully.
+The `Protect main` ruleset requires both CI jobs and requires branches to be up to date before merging.
 
 ## Planned Scope
 
@@ -96,7 +96,7 @@ This change does not configure required status checks in branch protection. Thos
 
 ## Model and Data
 
-Model weights, medical datasets, and private training notebooks are not included in this repository. Model setup instructions will be added with the inference feature.
+Model weights, medical datasets, and private training notebooks are not included in this repository. Use the local export setup below for the standalone loading check.
 
 ## Development Workflow
 
@@ -105,3 +105,60 @@ Each feature will follow an issue, feature branch, implementation, verification,
 ## Intended Use
 
 This is an educational prototype, not a clinically validated medical service. Planned predictions are specialty classifications, not diagnoses or urgency assessments.
+
+## Local Model Loading
+
+The standalone loader is independent of FastAPI startup and `/health`. It does not implement prediction or `/predict`.
+
+Provide a trusted local export directory containing these non-empty files:
+
+- `model.safetensors`
+- `config.json`
+- `tokenizer.json`
+- `tokenizer_config.json`
+- `training_config.json`
+
+Use an existing export path or place your private export under `models/pubmedbert_description/`, which Git ignores. No model weights are distributed or downloaded by this project. Do not substitute unmodified base-model weights for the fine-tuned classifier.
+
+The export must declare a single-label BERT classifier, the eight supported specialty labels with inverse ID mappings, `input_type: description`, and `max_length: 512`. This loader targets the current single-file export, not arbitrary Hugging Face models or sharded checkpoints. File checks cannot establish weight integrity or training provenance.
+
+### Optional CPU Dependencies
+
+Run from the project root in PowerShell, after creating `.venv`:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install "torch==2.14.0" --index-url https://download.pytorch.org/whl/cpu
+.\.venv\Scripts\python.exe -m pip install -e ".[inference,test]"
+.\.venv\Scripts\python.exe -m pip check
+```
+
+Install CPU PyTorch first so the optional dependency group reuses that distribution. These direct versions match the prior project's working CPU environment; the new project's local installation and real-model loading have now been verified. CI continues to install only `.[test]`.
+
+### Manual Offline Loading Check
+
+For an export placed under `models/pubmedbert_description/`, run from the repository root (or provide another local export path):
+
+```powershell
+$env:HF_HUB_OFFLINE = "1"
+$env:TRANSFORMERS_OFFLINE = "1"
+.\.venv\Scripts\python.exe -B -m triage_system.model_loader --model-dir ".\models\pubmedbert_description"
+```
+
+The loader uses local files only, disables custom remote code, selects safetensors, places the model on CPU, and switches to evaluation mode. It explicitly sets the tokenizer limit to 512; the export's placeholder tokenizer maximum is not used. Future prediction code must also enable truncation at that limit.
+
+Expected success output:
+
+```text
+Loaded 8 labels on CPU in evaluation mode.
+Maximum input length: 512 tokens. No prediction was run.
+```
+
+Metadata validation and tests with lightweight doubles do not prove real weights can load. The historical reload report belongs to an earlier environment; the new project's local export has now loaded successfully on CPU. No prediction or medical text is needed for the loading check, and CI for this loader change is pending.
+
+### Loader Verification Status
+
+- Windows / Python 3.10.9: 30 tests passed, including the existing health test; the same two dependency deprecation warnings remain.
+- `pip check` passed for the installed API/test environment. Inference dependencies have not been installed in this environment.
+- The existing export passed metadata validation for the eight labels and 512-token limit without reading weight contents.
+- New modules and tests passed Ruff checks using an existing local development tool; Ruff was not added as a project dependency.
+- The actual local export loaded successfully on CPU in evaluation mode with eight labels and a 512-token limit. No prediction was run. Remote CI for these changes is pending.
