@@ -4,7 +4,7 @@ A web application in development for classifying English medical descriptions in
 
 ## Project Status
 
-A minimal FastAPI service with a health endpoint is implemented and has been verified locally. A separate offline CPU model loader is implemented and has been verified with the local export. Prediction and the web interface are not implemented yet.
+A minimal FastAPI service now exposes health and single-description prediction endpoints. The local PubMedBERT export is loaded lazily on the first prediction request and remains CPU-only.
 
 This repository is being built incrementally to practice software development through small features, tests, and pull requests.
 
@@ -43,6 +43,25 @@ Keep the terminal open while using the service. Press `Ctrl+C` in that terminal 
 In `/docs`, expand `GET /health`, select **Try it out**, then **Execute**. Verify that the server response is HTTP `200` with the body above.
 
 The health endpoint reports that the API is responding. It does not check model readiness and does not load model weights.
+
+### Prediction Endpoint
+
+Set the private model directory before starting the API:
+
+```powershell
+$env:TRIAGE_MODEL_DIR = (Resolve-Path ".\\models\\pubmedbert_description").Path
+.\.venv\Scripts\python.exe -B -m uvicorn triage_system.api:app --host 127.0.0.1 --port 8000
+```
+
+Send one English medical description:
+
+```powershell
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/predict `
+  -ContentType "application/json" `
+  -Body '{"description":"persistent headache and visual changes"}'
+```
+
+The response contains the predicted specialty and a softmax score. The score is a model output, not a calibrated probability or a diagnosis. Blank descriptions are rejected, and inputs are truncated to the model contract's 512-token limit.
 
 ## Tests
 
@@ -108,7 +127,7 @@ This is an educational prototype, not a clinically validated medical service. Pl
 
 ## Local Model Loading
 
-The standalone loader is independent of FastAPI startup and `/health`. It does not implement prediction or `/predict`.
+The standalone loader is independent of FastAPI startup and `/health`. The prediction endpoint reuses the same validated loader and caches one CPU model instance for the process.
 
 Provide a trusted local export directory containing these non-empty files:
 
@@ -153,7 +172,7 @@ Loaded 8 labels on CPU in evaluation mode.
 Maximum input length: 512 tokens. No prediction was run.
 ```
 
-Metadata validation and tests with lightweight doubles do not prove real weights can load. The historical reload report belongs to an earlier environment; the new project's local export has now loaded successfully on CPU. No prediction or medical text is needed for the loading check, and CI for this loader change is pending.
+Metadata validation and tests with lightweight doubles do not prove real weights can load. The historical reload report belongs to an earlier environment; the new project's local export has loaded successfully on CPU. CI checks do not require private weights.
 
 ### Loader Verification Status
 
@@ -161,4 +180,4 @@ Metadata validation and tests with lightweight doubles do not prove real weights
 - `pip check` passed for the installed API/test environment. Inference dependencies have not been installed in this environment.
 - The existing export passed metadata validation for the eight labels and 512-token limit without reading weight contents.
 - New modules and tests passed Ruff checks using an existing local development tool; Ruff was not added as a project dependency.
-- The actual local export loaded successfully on CPU in evaluation mode with eight labels and a 512-token limit. No prediction was run. Remote CI for these changes is pending.
+- The actual local export loaded successfully on CPU in evaluation mode with eight labels and a 512-token limit. A prediction request is verified with test doubles; real prediction quality remains dependent on the private export.
