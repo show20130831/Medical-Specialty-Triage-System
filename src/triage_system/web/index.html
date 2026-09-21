@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Medical Specialty Triage System</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 3rem auto; padding: 0 1rem; color: #172033; }
+    textarea { width: 100%; min-height: 180px; padding: .8rem; box-sizing: border-box; }
+    button { margin-top: .8rem; padding: .65rem 1.1rem; cursor: pointer; }
+    #result { margin-top: 1.5rem; padding: 1rem; background: #eef4ff; min-height: 1.5rem; }
+    .notice { color: #5a6475; }
+  </style>
+</head>
+<body>
+  <h1>Medical Specialty Triage System</h1>
+  <p class="notice">Educational prototype. This classifies a description into a specialty; it is not a diagnosis.</p>
+  <form id="form">
+    <label for="description">Medical description (English)</label>
+    <textarea id="description" required placeholder="Example: persistent headache and visual changes"></textarea>
+    <button type="submit">Classify description</button>
+  </form>
+  <div id="result" role="status" aria-live="polite">Enter a description to begin.</div>
+  <script>
+    const form = document.querySelector('#form');
+    const input = document.querySelector('#description');
+    const result = document.querySelector('#result');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      result.textContent = 'Running local CPU inference...';
+      try {
+        const response = await fetch('/predict', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({description: input.value})
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Prediction failed.');
+        result.textContent = `Predicted specialty: ${data.label} (score: ${data.score.toFixed(4)})`;
+      } catch (error) {
+        result.textContent = `Error: ${error.message}`;
+      }
+    });
+  </script>
+</body>
+</html>

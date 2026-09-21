@@ -3,12 +3,20 @@ from functools import lru_cache
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from triage_system.model_loader import ModelLoadError, load_local_model
 from triage_system.predictor import PredictionError, predict_description
 
 app = FastAPI(title="Medical Specialty Triage System")
+WEB_ROOT = Path(__file__).with_name("web")
+
+
+@app.get("/", include_in_schema=False)
+def web_app() -> FileResponse:
+    """Serve the small browser client from the same origin as the API."""
+    return FileResponse(WEB_ROOT / "index.html")
 
 
 @app.get("/health")

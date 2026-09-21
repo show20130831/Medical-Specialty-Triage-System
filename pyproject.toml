@@ -28,5 +28,8 @@ where = ["src"]
 include = ["triage_system*"]
 namespaces = false
 
+[tool.setuptools.package-data]
+triage_system = ["web/*.html"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -11,6 +11,15 @@ def test_health_returns_ok():
     assert response.json() == {"status": "ok"}
 
 
+def test_web_page_is_served_from_same_origin():
+    with TestClient(app) as client:
+        response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Medical Specialty Triage System" in response.text
+    assert "fetch('/predict'" in response.text
+
+
 def test_predict_returns_label_and_score(monkeypatch):
     from triage_system import api
     from triage_system.predictor import Prediction
