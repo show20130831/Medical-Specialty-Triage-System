@@ -1,4 +1,3 @@
-import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -8,6 +7,7 @@ from pydantic import BaseModel
 
 from triage_system.model_loader import ModelLoadError, load_local_model
 from triage_system.predictor import PredictionError, predict_description
+from triage_system.config import load_settings
 
 app = FastAPI(title="Medical Specialty Triage System")
 WEB_ROOT = Path(__file__).with_name("web")
@@ -41,10 +41,10 @@ class PredictRequest(BaseModel):
 
 @lru_cache(maxsize=1)
 def _loaded_model():
-    model_dir = os.environ.get("TRIAGE_MODEL_DIR")
+    model_dir = load_settings().model_dir
     if not model_dir:
         raise ModelLoadError("TRIAGE_MODEL_DIR must point to a local model export.")
-    return load_local_model(Path(model_dir))
+    return load_local_model(model_dir)
 
 
 @app.post("/predict")

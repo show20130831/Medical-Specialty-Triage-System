@@ -56,8 +56,12 @@ Set the private model directory before starting the API:
 
 ```powershell
 $env:TRIAGE_MODEL_DIR = (Resolve-Path ".\\models\\pubmedbert_description").Path
+$env:TRIAGE_HOST = "127.0.0.1"
+$env:TRIAGE_PORT = "8000"
 .\.venv\Scripts\python.exe -B -m uvicorn triage_system.api:app --host 127.0.0.1 --port 8000
 ```
+
+`TRIAGE_MODEL_DIR`, `TRIAGE_HOST`, and `TRIAGE_PORT` are optional environment settings. The defaults are no model path, `127.0.0.1`, and port `8000`. The model path must be provided before `/ready` or `/predict` can load the private export.
 
 Send one English medical description:
 
