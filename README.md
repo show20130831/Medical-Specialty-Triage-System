@@ -4,7 +4,7 @@ A web application in development for classifying English medical descriptions in
 
 ## Project Status
 
-A minimal FastAPI service now exposes health and single-description prediction endpoints. The local PubMedBERT export is loaded lazily on the first prediction request and remains CPU-only.
+A minimal FastAPI service now exposes a browser interface, health endpoint, and single-description prediction endpoint. The local PubMedBERT export is loaded lazily on the first prediction request and remains CPU-only.
 
 This repository is being built incrementally to practice software development through small features, tests, and pull requests.
 
@@ -33,6 +33,7 @@ Keep the terminal open while using the service. Press `Ctrl+C` in that terminal 
 
 - Health endpoint: <http://127.0.0.1:8000/health>
 - Interactive API documentation: <http://127.0.0.1:8000/docs>
+- Browser interface: <http://127.0.0.1:8000/>
 
 `GET /health` returns HTTP `200` with:
 
@@ -43,6 +44,8 @@ Keep the terminal open while using the service. Press `Ctrl+C` in that terminal 
 In `/docs`, expand `GET /health`, select **Try it out**, then **Execute**. Verify that the server response is HTTP `200` with the body above.
 
 The health endpoint reports that the API is responding. It does not check model readiness and does not load model weights.
+
+Open the browser interface at `/` after setting `TRIAGE_MODEL_DIR`. Enter an English medical description and select **Classify description**. The page uses the same origin as the API, so no separate frontend server or CORS configuration is needed for this local prototype.
 
 ### Prediction Endpoint
 
