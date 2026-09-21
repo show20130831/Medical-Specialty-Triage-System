@@ -8,8 +8,10 @@ from pydantic import BaseModel
 from triage_system.model_loader import ModelLoadError, load_local_model
 from triage_system.predictor import PredictionError, predict_description
 from triage_system.config import load_settings
+from triage_system.logging_config import log_request
 
 app = FastAPI(title="Medical Specialty Triage System")
+app.middleware("http")(log_request)
 WEB_ROOT = Path(__file__).with_name("web")
 
 
