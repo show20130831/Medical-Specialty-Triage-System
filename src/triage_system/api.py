@@ -25,6 +25,16 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/ready")
+def ready() -> dict[str, str]:
+    """Report whether the configured local model can serve predictions."""
+    try:
+        _loaded_model()
+    except ModelLoadError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from None
+    return {"status": "ready"}
+
+
 class PredictRequest(BaseModel):
     description: str
 

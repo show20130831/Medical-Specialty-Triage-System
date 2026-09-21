@@ -11,6 +11,29 @@ def test_health_returns_ok():
     assert response.json() == {"status": "ok"}
 
 
+def test_ready_returns_ready_when_model_loads(monkeypatch):
+    from triage_system import api
+
+    monkeypatch.setattr(api, "_loaded_model", lambda: object())
+    with TestClient(app) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+
+
+def test_ready_returns_service_unavailable_when_model_is_not_configured(monkeypatch):
+    from triage_system import api
+    from triage_system.model_loader import ModelLoadError
+
+    monkeypatch.setattr(api, "_loaded_model", lambda: (_ for _ in ()).throw(ModelLoadError("model unavailable")))
+    with TestClient(app) as client:
+        response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "model unavailable"}
+
+
 def test_web_page_is_served_from_same_origin():
     with TestClient(app) as client:
         response = client.get("/")
