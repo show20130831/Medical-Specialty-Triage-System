@@ -48,6 +48,10 @@ The health endpoint reports that the API is responding. It does not check model 
 
 `GET /ready` loads the configured local model once and returns HTTP `200` with `{"status":"ready"}` when predictions can be served. If `TRIAGE_MODEL_DIR` is missing or the export cannot load, it returns HTTP `503` with an actionable error. This distinction is intended for local checks and future deployment probes.
 
+### Logging and Privacy
+
+The API logs request method, URL path, response status, and duration. It does not read or log request bodies, so submitted medical descriptions are excluded from application logs by design. Production log retention, access control, and centralized collection remain deployment responsibilities.
+
 Open the browser interface at `/` after setting `TRIAGE_MODEL_DIR`. Enter an English medical description and select **Classify description**. The page uses the same origin as the API, so no separate frontend server or CORS configuration is needed for this local prototype.
 
 ### Prediction Endpoint
