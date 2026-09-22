@@ -67,6 +67,16 @@ $env:TRIAGE_PORT = "8000"
 
 `TRIAGE_MODEL_DIR`, `TRIAGE_HOST`, and `TRIAGE_PORT` are optional environment settings. The defaults are no model path, `127.0.0.1`, and port `8000`. The model path must be provided before `/ready` or `/predict` can load the private export.
 
+### Container Startup
+
+Docker support is provided for a reproducible API process. The image does not contain model weights. Place the private export at `models/pubmedbert_description/`, then run:
+
+```powershell
+docker compose up --build
+```
+
+Open <http://127.0.0.1:8000/> after the container starts. The model directory is mounted read-only at `/models`; the container does not write model files back to the host. This CPU image is intended for demonstration and small-volume testing, not production capacity.
+
 Send one English medical description:
 
 ```powershell
