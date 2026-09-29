@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from triage_system.model_loader import ModelLoadError, load_local_model
 from triage_system.predictor import PredictionError, predict_description
@@ -11,6 +11,7 @@ from triage_system.config import load_settings
 from triage_system.logging_config import log_request
 
 app = FastAPI(title="Medical Specialty Triage System")
+MAX_DESCRIPTION_CHARS = 10_000
 app.middleware("http")(log_request)
 WEB_ROOT = Path(__file__).with_name("web")
 
@@ -38,7 +39,7 @@ def ready() -> dict[str, str]:
 
 
 class PredictRequest(BaseModel):
-    description: str
+    description: str = Field(max_length=MAX_DESCRIPTION_CHARS)
 
 
 @lru_cache(maxsize=1)

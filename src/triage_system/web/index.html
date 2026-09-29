@@ -17,7 +17,8 @@
   <p class="notice">Educational prototype. This classifies a description into a specialty; it is not a diagnosis.</p>
   <form id="form">
     <label for="description">Medical description (English)</label>
-    <textarea id="description" required placeholder="Example: persistent headache and visual changes"></textarea>
+    <textarea id="description" required maxlength="10000" placeholder="Example: persistent headache and visual changes"></textarea>
+    <p class="notice"><span id="count">0</span>/10000 characters</p>
     <button type="submit">Classify description</button>
   </form>
   <div id="result" role="status" aria-live="polite">Enter a description to begin.</div>
@@ -25,6 +26,8 @@
     const form = document.querySelector('#form');
     const input = document.querySelector('#description');
     const result = document.querySelector('#result');
+    const count = document.querySelector('#count');
+    input.addEventListener('input', () => { count.textContent = input.value.length; });
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       result.textContent = 'Running local CPU inference...';
