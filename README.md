@@ -1,4 +1,4 @@
-# Medical Specialty Triage System
+ï»¿# Medical Specialty Triage System
 
 An educational NLP application that classifies an English medical description into one of eight medical specialties.
 
@@ -128,9 +128,13 @@ The test suite covers API behavior, input validation, model asset validation, of
 
 ```text
 src/triage_system/
-ºw^~)Şvéİyø§yÛ§uçâç@ api.py              # FastAPI routes and browser entry point§uçâç\ºw^~)Şvéİyø§yĞ config.py           # Environment-backed settings§uçâç\ºw^~)Şvéİyø§yĞ model_assets.py     # Local export validation
-éİyø§yÛ§uçâç@ºw^~)Şt model_loader.py     # Offline CPU model loading§uçâç\ºw^~)Şvéİyø§yĞ predictor.py        # Description inference§uçâç\ºw^~)Şvéİyø§yĞ logging_config.py   # Privacy-safe request logging
-ºw^~)Şvéİyø§yÛ§uçâç@ web/index.html      # Browser client
+â”œâ”€â”€ api.py              # FastAPI routes and browser entry point
+â”œâ”€â”€ config.py           # Environment-backed settings
+â”œâ”€â”€ model_assets.py     # Local export validation
+â”œâ”€â”€ model_loader.py     # Offline CPU model loading
+â”œâ”€â”€ predictor.py        # Description inference
+â”œâ”€â”€ logging_config.py   # Privacy-safe request logging
+â””â”€â”€ web/index.html      # Browser client
 tests/                  # Automated tests
 Dockerfile              # Reproducible CPU image
 compose.yaml            # Local container startup
