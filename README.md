@@ -86,6 +86,7 @@ Invoke-RestMethod -Method Post http://127.0.0.1:8000/predict `
 ```
 
 The response contains the predicted specialty and a softmax score. The score is a model output, not a calibrated probability or a diagnosis. Blank descriptions are rejected, and inputs are truncated to the model contract's 512-token limit.
+The API also rejects descriptions longer than 10,000 characters with HTTP `422`; this protects the CPU service from unnecessarily large requests.
 
 ## Tests
 

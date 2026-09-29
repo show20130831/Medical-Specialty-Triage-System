@@ -62,3 +62,11 @@ def test_predict_rejects_blank_description():
 
     assert response.status_code == 400
     assert "non-blank" in response.json()["detail"]
+
+
+def test_predict_rejects_description_over_maximum_length():
+    with TestClient(app) as client:
+        response = client.post("/predict", json={"description": "x" * 10001})
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "string_too_long"
