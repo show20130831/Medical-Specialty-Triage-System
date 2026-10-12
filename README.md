@@ -97,6 +97,19 @@ The browser interface is available at http://127.0.0.1:8000/. Stop the container
 docker compose down
 ```
 
+## Model Development
+
+The classifier is trained by the `triage_training` package from the public Kaggle
+MTSamples dataset: cleaning, taxonomy labeling, deduplication, leakage-free stratified
+splits, data validation, a TF-IDF baseline, and PubMedBERT fine-tuning, all driven by
+[configs/train.yaml](configs/train.yaml). See [docs/training.md](docs/training.md).
+
+```bash
+python -m triage_training prepare-data
+python -m triage_training baseline
+python -m triage_training finetune
+```
+
 ## Testing
 
 ```powershell
@@ -104,7 +117,7 @@ docker compose down
 .\.venv\Scripts\python.exe -m pip check
 ```
 
-The test suite covers API behavior, input validation, model asset validation, offline CPU loading contracts, prediction logic, configuration, and privacy-safe logging. CI runs the test suite on Windows and Ubuntu with Python 3.10.
+The test suite covers API behavior, input validation, model asset validation, offline CPU loading contracts, prediction logic, configuration, privacy-safe logging, and the training data pipeline (labeling, deduplication, split validation, baseline). Training tests use synthetic data, so CI needs neither the dataset nor a GPU. CI runs the test suite on Windows and Ubuntu with Python 3.10.
 
 ## Engineering Highlights
 
@@ -135,6 +148,12 @@ src/triage_system/
 ├── predictor.py        # Description inference
 ├── logging_config.py   # Privacy-safe request logging
 └── web/index.html      # Browser client
+src/triage_training/
+├── data.py             # Cleaning, labeling, deduplication, split validation
+├── baseline.py         # TF-IDF + logistic regression
+├── finetune.py         # PubMedBERT fine-tuning and export
+└── __main__.py         # CLI: prepare-data, baseline, finetune
+configs/                # Training config and specialty taxonomy
 tests/                  # Automated tests
 Dockerfile              # Reproducible CPU image
 compose.yaml            # Local container startup

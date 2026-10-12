@@ -44,10 +44,8 @@ htmlcov/
 *.pem
 *.key
 
-# Local editor, assistant, and operating system files
+# Local editor and operating system files
 .vscode/
 .idea/
-.codex/
-.claude/
 .DS_Store
 Thumbs.db
