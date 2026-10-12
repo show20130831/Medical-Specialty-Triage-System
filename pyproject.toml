@@ -18,6 +18,15 @@ inference = [
     "torch==2.14.0",
     "transformers==5.16.1",
 ]
+train = [
+    "numpy>=1.26,<3",
+    "pandas==2.2.3",
+    "PyYAML==6.0.3",
+    "scikit-learn==1.6.1",
+]
+finetune = [
+    "accelerate==1.14.0",
+]
 test = [
     "pytest==8.4.2",
     "httpx==0.28.1",
@@ -25,7 +34,7 @@ test = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["triage_system*"]
+include = ["triage_system*", "triage_training*"]
 namespaces = false
 
 [tool.setuptools.package-data]

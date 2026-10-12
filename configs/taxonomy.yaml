@@ -1,0 +1,299 @@
+# Domain taxonomy for re-labeling MTSamples' 40 original `medical_specialty`
+# values into the eight specialty groups served by the API.
+#
+#   1. direct_mapping: specialties with an unambiguous 1:1 group.
+#   2. keyword_weights: catch-all specialties (Surgery, Radiology, SOAP notes,
+#      Discharge Summary) are scored against each group by summing the weights of
+#      keyword substrings found in the cleaned `keywords` field (2 = specific
+#      term, 1 = shared anatomical term); the argmax group wins, zero scores are
+#      dropped. See triage_training.taxonomy.
+#
+# This file is versioned experiment data: its SHA-256 is recorded in every
+# dataset manifest, so editing it requires re-running prepare-data and training.
+
+direct_mapping:
+  "Cardiovascular / Pulmonary": "Cardiovascular & Pulmonary"
+  "Gastroenterology": "Gastroenterology"
+  "Neurology": "Neurology"
+  "Neurosurgery": "Neurology"
+  "Psychiatry / Psychology": "Neurology"
+  "Orthopedic": "Orthopedics"
+  "Physical Medicine - Rehab": "Orthopedics"
+  "Pain Management": "Orthopedics"
+  "Obstetrics / Gynecology": "OB-GYN"
+  "Urology": "Urology"
+  "ENT - Otolaryngology": "ENT & Ophthalmology"
+  "Ophthalmology": "ENT & Ophthalmology"
+  "Dentistry": "ENT & Ophthalmology"
+  "Internal Medicine": "General Medicine"
+  "General Medicine": "General Medicine"
+  "Office Notes": "General Medicine"
+  "Allergy / Immunology": "General Medicine"
+  "Endocrinology": "General Medicine"
+  "Hematology - Oncology": "General Medicine"
+  "Nephrology": "General Medicine"
+  "Rheumatology": "General Medicine"
+  "Infectious Disease": "General Medicine"
+
+keyword_reclassification_specialties:
+  - "Surgery"
+  - "Radiology"
+  - "SOAP / Chart / Progress Notes"
+  - "Discharge Summary"
+
+keyword_weights:
+  "Cardiovascular & Pulmonary":
+    "coronary artery bypass": 2
+    "pacemaker": 2
+    "angioplasty": 2
+    "cardiopulmonary": 2
+    "thoracotomy": 2
+    "carotid": 2
+    "saphenous vein": 2
+    "aortic valve": 2
+    "atrial fibrillation": 2
+    "congestive heart failure": 2
+    "myocardial": 2
+    "pneumonectomy": 2
+    "lobectomy": 2
+    "coronary stent": 2
+    "cardiac catheterization": 2
+    "echocardiogram": 2
+    "electrocardiogram": 2
+    "doppler": 2
+    "pulmonary nodule": 2
+    "lung nodule": 2
+    "pulmonary embolism": 2
+    "stent": 2
+    "cardiac": 1
+    "heart": 1
+    "aortic": 1
+    "vascular": 1
+    "ventricular": 1
+    "pulmonary": 1
+    "thoracic": 1
+    "artery": 1
+    "coronary": 1
+    "chest": 1
+
+  "Gastroenterology":
+    "cholecystectomy": 2
+    "appendectomy": 2
+    "colectomy": 2
+    "herniorrhaphy": 2
+    "fundoplication": 2
+    "gastrectomy": 2
+    "colonoscopy": 2
+    "endoscopy": 2
+    "cholecystitis": 2
+    "colostomy": 2
+    "sigmoidoscopy": 2
+    "hartmann": 2
+    "appendicitis": 2
+    "laparotomy": 2
+    "esophagogastroduodenoscopy": 2
+    "egd": 2
+    "colorectal": 2
+    "diverticulitis": 2
+    "ct abdomen": 2
+    "abdominal ct": 2
+    "colon": 1
+    "bowel": 1
+    "intestin": 1
+    "appendix": 1
+    "gallbladder": 1
+    "hernia": 1
+    "gastric": 1
+    "esophag": 1
+    "rectal": 1
+    "hepatic": 1
+    "liver": 1
+    "pancrea": 1
+    "laparoscopic": 1
+    "abdomin": 1
+
+  "Neurology":
+    "ventriculostomy": 2
+    "craniotomy": 2
+    "vp shunt": 2
+    "hydrocephalus": 2
+    "intracranial": 2
+    "intraventricular": 2
+    "laminectomy": 2
+    "discectomy": 2
+    "epilepsy": 2
+    "stroke": 2
+    "seizure": 2
+    "dementia": 2
+    "shunt": 2
+    "ventriculoperitoneal": 2
+    "emg": 2
+    "electromyography": 2
+    "nerve conduction": 2
+    "nerve conduction study": 2
+    "radiculopathy": 2
+    "cervical decompression": 2
+    "cervical fusion": 2
+    "spine fusion": 2
+    "anterior cervical": 2
+    "herniated nucleus pulposus": 2
+    "brain": 1
+    "cranial": 1
+    "neural": 1
+    "cerebral": 1
+    "spinal cord": 1
+    "dural": 1
+    "headache": 1
+    "nerve": 1
+    "lumbar": 1
+    "cervical": 1
+
+  "Orthopedics":
+    "arthroplasty": 2
+    "osteotomy": 2
+    "arthroscopy": 2
+    "meniscectomy": 2
+    "rotator cuff": 2
+    "metatarsal": 2
+    "hallux": 2
+    "vertebroplasty": 2
+    "bunionectomy": 2
+    "total knee": 2
+    "total hip": 2
+    "acl": 2
+    "carpal": 2
+    "flexor tendon": 2
+    "extensor tendon": 2
+    "digital laceration": 2
+    "hand surgery": 2
+    "knee": 1
+    "hip": 1
+    "shoulder": 1
+    "ankle": 1
+    "wrist": 1
+    "fracture": 1
+    "bone": 1
+    "joint": 1
+    "tendon": 1
+    "ligament": 1
+    "phalanx": 1
+    "orthopedic": 1
+    "spine": 1
+    "vertebr": 1
+    "musculoskeletal": 1
+
+  "OB-GYN":
+    "hysterectomy": 2
+    "cesarean": 2
+    "salpingectomy": 2
+    "oophorectomy": 2
+    "endometriosis": 2
+    "fallopian": 2
+    "intrauterine": 2
+    "obstetric": 2
+    "gynecolog": 2
+    "prenatal": 2
+    "fetal": 2
+    "gestational": 2
+    "uterus": 1
+    "ovarian": 1
+    "cervix": 1
+    "vaginal": 1
+    "pregnancy": 1
+    "pregnant": 1
+    "menstrual": 1
+
+  "Urology":
+    "nephrectomy": 2
+    "prostatectomy": 2
+    "vasectomy": 2
+    "cystectomy": 2
+    "ureterectomy": 2
+    "cystourethroscopy": 2
+    "turp": 2
+    "bun": 2
+    "nephrolithiasis": 2
+    "prostate cancer": 2
+    "renal cell": 2
+    "orchiopexy": 2
+    "undescended testes": 2
+    "undescended testis": 2
+    "cremasteric": 2
+    "scrotal": 2
+    "urethroplasty": 2
+    "penile": 2
+    "kidney": 1
+    "renal": 1
+    "bladder": 1
+    "prostate": 1
+    "ureter": 1
+    "urethra": 1
+    "urinary": 1
+    "testicular": 1
+    "epididymis": 1
+
+  "ENT & Ophthalmology":
+    "eyelid": 2
+    "orbit": 2
+    "orbital": 2
+    "turbinate": 2
+    "septoplasty": 2
+    "adenoidectomy": 2
+    "parotid": 2
+    "salivary": 2
+    "laryngoscopy": 2
+    "tympanoplasty": 2
+    "mastoidectomy": 2
+    "vitrectomy": 2
+    "capsulotomy": 2
+    "tonsillectomy": 2
+    "thyroidectomy": 2
+    "cochlear": 2
+    "retinal detachment": 2
+    "cataract": 2
+    "rhinoplasty": 2
+    "sinusitis": 2
+    "nasal septum": 2
+    "nasal septal": 2
+    "trabeculectomy": 2
+    "ahmed": 2
+    "glaucoma": 2
+    "intraocular": 2
+    "vitreous": 2
+    "le fort": 2
+    "mandible": 2
+    "maxillofacial": 2
+    "mandibular": 2
+    "eye": 1
+    "ophthalm": 1
+    "cornea": 1
+    "retinal": 1
+    "sinus": 1
+    "nasal": 1
+    "tonsil": 1
+    "larynx": 1
+    "thyroid": 1
+    "ear": 1
+    "mastoid": 1
+    "hearing": 1
+
+  "General Medicine":
+    "mastectomy": 2
+    "lymph node": 2
+    "skin graft": 2
+    "chemotherapy": 2
+    "diabetes": 2
+    "hypertension": 2
+    "adenomyosis": 2
+    "syncope": 2
+    "temporal arteritis": 2
+    "giant cell arteritis": 2
+    "wound": 1
+    "debridement": 1
+    "biopsy": 1
+    "abscess": 1
+    "lymph": 1
+    "breast": 1
+    "catheter": 1
+    "infection": 1
+    "fever": 1

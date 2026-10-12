@@ -6,3 +6,4 @@ notebooks
 tests
 __pycache__
 *.pyc
+outputs
