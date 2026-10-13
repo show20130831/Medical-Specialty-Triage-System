@@ -94,3 +94,27 @@ def test_swapped_label_ids_are_rejected(export):
     path.write_text(json.dumps(config), encoding="utf-8")
     with pytest.raises(ModelAssetError, match="inverse"):
         validate_model_assets(export)
+
+
+def test_missing_calibration_defaults_to_uncalibrated_scores(export):
+    assets = validate_model_assets(export)
+    assert (assets.temperature, assets.uncertain_threshold) == (1.0, None)
+
+
+def test_calibration_is_loaded(export):
+    (export / "calibration.json").write_text(
+        json.dumps({"temperature": 0.95, "uncertain_threshold": 0.65}), encoding="utf-8")
+    assets = validate_model_assets(export)
+    assert (assets.temperature, assets.uncertain_threshold) == (0.95, 0.65)
+
+
+@pytest.mark.parametrize("calibration", [
+    {"temperature": 0},
+    {"temperature": "1.0"},
+    {"temperature": True},
+    {"temperature": 1.0, "uncertain_threshold": 1.5},
+])
+def test_invalid_calibration_is_rejected(export, calibration):
+    (export / "calibration.json").write_text(json.dumps(calibration), encoding="utf-8")
+    with pytest.raises(ModelAssetError, match="calibration.json"):
+        validate_model_assets(export)

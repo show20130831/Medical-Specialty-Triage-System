@@ -43,25 +43,43 @@ def test_web_page_is_served_from_same_origin():
     assert "fetch('/predict'" in response.text
 
 
-def test_predict_returns_label_and_score(monkeypatch):
+def test_predict_returns_calibrated_top_three(monkeypatch):
     from triage_system import api
     from triage_system.predictor import Prediction
 
+    top = (("Neurology", 0.91), ("General Medicine", 0.05), ("Orthopedics", 0.02))
     monkeypatch.setattr(api, "_loaded_model", lambda: object())
-    monkeypatch.setattr(api, "predict_description", lambda model, text: Prediction("Neurology", 0.91))
+    monkeypatch.setattr(api, "predict_description",
+                        lambda model, text: Prediction("Neurology", 0.91, False, top))
     with TestClient(app) as client:
         response = client.post("/predict", json={"description": "persistent headache"})
 
     assert response.status_code == 200
-    assert response.json() == {"label": "Neurology", "score": 0.91}
+    assert response.json() == {
+        "label": "Neurology", "score": 0.91, "uncertain": False,
+        "top": [{"label": label, "score": score} for label, score in top],
+    }
+
+
+def test_predict_returns_service_unavailable_when_model_cannot_load(monkeypatch):
+    from triage_system import api
+    from triage_system.model_loader import ModelLoadError
+
+    monkeypatch.setattr(api, "_loaded_model",
+                        lambda: (_ for _ in ()).throw(ModelLoadError("model unavailable")))
+    with TestClient(app) as client:
+        response = client.post("/predict", json={"description": "persistent headache"})
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "model unavailable"}
 
 
 def test_predict_rejects_blank_description():
     with TestClient(app) as client:
         response = client.post("/predict", json={"description": "  "})
 
-    assert response.status_code == 400
-    assert "non-blank" in response.json()["detail"]
+    assert response.status_code == 422
+    assert "non-blank" in response.json()["detail"][0]["msg"]
 
 
 def test_predict_rejects_description_over_maximum_length():

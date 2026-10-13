@@ -10,24 +10,67 @@
     button { margin-top: .8rem; padding: .65rem 1.1rem; cursor: pointer; }
     #result { margin-top: 1.5rem; padding: 1rem; background: #eef4ff; min-height: 1.5rem; }
     .notice { color: #5a6475; }
+    .examples button { margin: 0 .4rem .4rem 0; padding: .35rem .7rem; font-size: .9rem; }
+    .uncertain { color: #8a4b00; font-weight: 600; }
+    .rank { display: grid; grid-template-columns: 14rem 1fr 3.5rem; gap: .6rem; align-items: center; margin-top: .45rem; }
+    .bar { height: .7rem; background: #c9d7f2; border-radius: 4px; overflow: hidden; }
+    .bar span { display: block; height: 100%; background: #2f5fb3; }
+    @media (max-width: 520px) { .rank { grid-template-columns: 1fr 3.5rem; } .bar { grid-column: 1 / -1; } }
   </style>
 </head>
 <body>
   <h1>Medical Specialty Triage System</h1>
-  <p class="notice">Educational prototype. This classifies a description into a specialty; it is not a diagnosis.</p>
+  <p class="notice">Educational prototype. This suggests which specialty a clinical description belongs to; it is not a diagnosis, urgency assessment, or treatment advice. Use synthetic text only.</p>
   <form id="form">
     <label for="description">Medical description (English)</label>
     <textarea id="description" required maxlength="10000" placeholder="Example: persistent headache and visual changes"></textarea>
     <p class="notice"><span id="count">0</span>/10000 characters</p>
+    <div class="examples" aria-label="Synthetic examples">
+      <span class="notice">Try a synthetic example:</span><br>
+      <button type="button" data-example="Persistent knee pain and stiffness when walking.">Knee pain</button>
+      <button type="button" data-example="Laparoscopic cholecystectomy for symptomatic gallstones.">Gallbladder surgery</button>
+      <button type="button" data-example="Chest pain and back pain after a fall.">Ambiguous: chest and back pain</button>
+    </div>
     <button type="submit">Classify description</button>
   </form>
   <div id="result" role="status" aria-live="polite">Enter a description to begin.</div>
   <script>
+    function render(data) {
+      result.replaceChildren();
+      const heading = document.createElement('p');
+      heading.textContent = data.uncertain
+        ? 'The model is not confident enough to suggest a specialty. Please route this description for manual review.'
+        : `Suggested specialty: ${data.label} (calibrated confidence ${(data.score * 100).toFixed(1)}%)`;
+      if (data.uncertain) heading.className = 'uncertain';
+      result.append(heading);
+      for (const item of data.top) {
+        const row = document.createElement('div');
+        row.className = 'rank';
+        const name = document.createElement('span');
+        name.textContent = item.label;
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        const fill = document.createElement('span');
+        fill.style.width = `${(item.score * 100).toFixed(1)}%`;
+        bar.append(fill);
+        const value = document.createElement('span');
+        value.textContent = `${(item.score * 100).toFixed(1)}%`;
+        row.append(name, bar, value);
+        result.append(row);
+      }
+    }
     const form = document.querySelector('#form');
     const input = document.querySelector('#description');
     const result = document.querySelector('#result');
     const count = document.querySelector('#count');
     input.addEventListener('input', () => { count.textContent = input.value.length; });
+    for (const button of document.querySelectorAll('[data-example]')) {
+      button.addEventListener('click', () => {
+        input.value = button.dataset.example;
+        count.textContent = input.value.length;
+        form.requestSubmit();
+      });
+    }
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       result.textContent = 'Running local CPU inference...';
@@ -37,8 +80,11 @@
           body: JSON.stringify({description: input.value})
         });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.detail || 'Prediction failed.');
-        result.textContent = `Predicted specialty: ${data.label} (score: ${data.score.toFixed(4)})`;
+        if (!response.ok) {
+          const detail = Array.isArray(data.detail) ? data.detail.map((d) => d.msg).join(' ') : data.detail;
+          throw new Error(detail || 'Prediction failed.');
+        }
+        render(data);
       } catch (error) {
         result.textContent = `Error: ${error.message}`;
       }
