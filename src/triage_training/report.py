@@ -1,0 +1,353 @@
+"""Assemble the statistical evaluation report from saved run predictions.
+
+The report only contains aggregate numbers, so it can be committed; it reads the
+prepared splits locally to group test rows but never writes their text.
+"""
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+
+from triage_training.artifacts import utc_timestamp, write_json
+from triage_training.config import TrainingConfig
+from triage_training.data import PreparedDataset, description_key, load_dataset
+from triage_training.evaluation import classification_metrics
+from triage_training.stats import (
+    accuracy, bootstrap_ci, calibrate, choose_threshold, expected_calibration_error,
+    fit_temperature, macro_f1, mcnemar_exact, negative_log_likelihood,
+    paired_bootstrap_difference, selective_prediction,
+)
+
+TARGET_ANSWERED_ACCURACY = 0.90
+THRESHOLDS = [0.0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+
+
+@dataclass(frozen=True)
+class RunScores:
+    run_dir: Path
+    display_name: str
+    manifest: dict
+    splits: dict[str, dict[str, np.ndarray]]  # split -> source_row, y_true, logits
+
+    @property
+    def deduplicated(self) -> bool:
+        return self.manifest["dataset"]["deduplicated"]
+
+    def predictions(self, split: str = "test") -> np.ndarray:
+        return self.splits[split]["logits"].argmax(axis=1)
+
+
+def load_run(run_dir: Path) -> RunScores:
+    manifest = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    is_probability = manifest["model"] == "tfidf_logistic_regression"
+    splits = {}
+    for name in ("val", "test"):
+        saved = np.load(run_dir / f"predictions_{name}.npz")
+        scores = saved["scores"].astype(np.float64)
+        # Log-probabilities behave as logits for argmax, softmax, and temperature scaling.
+        logits = np.log(np.clip(scores, 1e-12, 1.0)) if is_probability else scores
+        splits[name] = {"source_row": saved["source_row"], "y_true": saved["y_true"],
+                        "logits": logits}
+    if is_probability:
+        display = "TF-IDF + logistic regression"
+    elif "evaluated_export" in manifest:
+        display = f"PubMedBERT ({run_dir.name.split('_')[0]} export)"
+    else:
+        display = f"PubMedBERT (seed {manifest['config']['seed']})"
+    return RunScores(run_dir=run_dir, display_name=display, manifest=manifest, splits=splits)
+
+
+def _require_same_test_rows(runs: list[RunScores]) -> None:
+    reference = runs[0].splits["test"]["source_row"]
+    for run in runs[1:]:
+        if not np.array_equal(run.splits["test"]["source_row"], reference):
+            raise ValueError(f"{run.run_dir.name} was not evaluated on the same test rows.")
+
+
+def _summary(run: RunScores, labels: tuple[str, ...]) -> dict:
+    y_true, logits = run.splits["test"]["y_true"], run.splits["test"]["logits"]
+    y_pred = logits.argmax(axis=1)
+    full = classification_metrics(y_true, calibrate(logits, 1.0), labels)
+    return {
+        "name": run.display_name,
+        "run": run.run_dir.name,
+        "n_test": int(len(y_true)),
+        "accuracy": bootstrap_ci(y_true, y_pred, accuracy),
+        "macro_f1": bootstrap_ci(y_true, y_pred, macro_f1),
+        "weighted_f1": full["weighted_f1"],
+        "val_macro_f1": macro_f1(run.splits["val"]["y_true"], run.predictions("val")),
+    }
+
+
+def _comparison(a: RunScores, b: RunScores) -> dict:
+    y_true = a.splits["test"]["y_true"]
+    pred_a, pred_b = a.predictions(), b.predictions()
+    return {
+        "a": a.display_name,
+        "b": b.display_name,
+        "mcnemar": mcnemar_exact(pred_a == y_true, pred_b == y_true),
+        "macro_f1_difference": paired_bootstrap_difference(y_true, pred_a, pred_b, macro_f1),
+        "accuracy_difference": paired_bootstrap_difference(y_true, pred_a, pred_b, accuracy),
+    }
+
+
+def _errors(run: RunScores, labels: tuple[str, ...]) -> dict:
+    y_true = run.splits["test"]["y_true"]
+    metrics = classification_metrics(y_true, calibrate(run.splits["test"]["logits"], 1.0), labels)
+    matrix = np.array(metrics["confusion_matrix"])
+    np.fill_diagonal(matrix, 0)
+    pairs = sorted(((int(matrix[i, j]), labels[i], labels[j])
+                    for i in range(len(labels)) for j in range(len(labels)) if matrix[i, j]),
+                   reverse=True)[:5]
+    return {
+        "per_class": {label: {k: metrics["per_class"][label][k]
+                              for k in ("precision", "recall", "f1-score", "support")}
+                      for label in labels},
+        "top_confusions": [{"true": t, "predicted": p, "count": c} for c, t, p in pairs],
+    }
+
+
+def _calibration(run: RunScores) -> dict:
+    val, test = run.splits["val"], run.splits["test"]
+    temperature = fit_temperature(val["logits"], val["y_true"])
+    raw_test, calibrated_test = calibrate(test["logits"], 1.0), calibrate(test["logits"], temperature)
+    threshold = choose_threshold(calibrate(val["logits"], temperature), val["y_true"],
+                                 TARGET_ANSWERED_ACCURACY)
+    return {
+        "temperature": temperature,
+        "test_ece": {"raw": expected_calibration_error(raw_test, test["y_true"]),
+                     "calibrated": expected_calibration_error(calibrated_test, test["y_true"])},
+        "test_nll": {"raw": negative_log_likelihood(test["logits"], test["y_true"]),
+                     "calibrated": negative_log_likelihood(test["logits"], test["y_true"],
+                                                           temperature)},
+        "selective_test": selective_prediction(calibrated_test, test["y_true"], THRESHOLDS),
+        "uncertain_threshold": {
+            "target_answered_accuracy": TARGET_ANSWERED_ACCURACY,
+            "chosen_on": "val",
+            "threshold": threshold,
+            "test": selective_prediction(calibrated_test, test["y_true"], [threshold])[0],
+        },
+    }
+
+
+def _accuracy_by(mask: np.ndarray, correct: np.ndarray) -> dict:
+    return {"n": int(mask.sum()),
+            "accuracy": float(correct[mask].mean()) if mask.any() else None}
+
+
+def _label_source(runs: list[RunScores], dataset: PreparedDataset) -> dict:
+    """Accuracy on rows labeled by direct specialty mapping vs. keyword rules."""
+    test = dataset.splits["test"].set_index("source_row")
+    out = {}
+    for run in runs:
+        rows = run.splits["test"]["source_row"]
+        source = test.loc[rows, "label_source"].to_numpy()
+        correct = run.predictions() == run.splits["test"]["y_true"]
+        out[run.display_name] = {kind: _accuracy_by(source == kind, correct)
+                                 for kind in ("direct", "keyword")}
+    return out
+
+
+def _leakage(run: RunScores, config: TrainingConfig) -> dict:
+    """Split legacy test accuracy into rows whose description was also in train."""
+    split_seed = run.manifest["dataset"]["split_seed"]
+    dataset = load_dataset(config.paths.data_dir / f"rowlevel_seed{split_seed}")
+    keys = {name: part["description"].map(description_key)
+            for name, part in dataset.splits.items()}
+    labels_by_key: dict[str, set[str]] = {}
+    for name, part in dataset.splits.items():
+        for key, label in zip(keys[name], part["label"]):
+            labels_by_key.setdefault(key, set()).add(label)
+    train_keys = set(keys["train"])
+
+    test = dataset.splits["test"].assign(key=keys["test"]).set_index("source_row")
+    test = test.loc[run.splits["test"]["source_row"]]
+    seen = test["key"].isin(train_keys).to_numpy()
+    conflicting = test["key"].map(lambda k: len(labels_by_key[k]) > 1).to_numpy()
+    correct = run.predictions() == run.splits["test"]["y_true"]
+    return {
+        "name": run.display_name,
+        "run": run.run_dir.name,
+        "all": _accuracy_by(np.ones_like(correct), correct),
+        "seen_in_train": _accuracy_by(seen, correct),
+        "seen_consistent_label": _accuracy_by(seen & ~conflicting, correct),
+        "unseen": _accuracy_by(~seen, correct),
+        "conflicting_label": _accuracy_by(conflicting, correct),
+        "macro_f1": macro_f1(run.splits["test"]["y_true"], run.predictions()),
+    }
+
+
+def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
+                 seed_dirs: list[Path], rowlevel_dirs: list[Path], out_dir: Path) -> dict:
+    primary, baseline = load_run(model_dir), load_run(baseline_dir)
+    seeds = [load_run(d) for d in seed_dirs]
+    rowlevel = [load_run(d) for d in rowlevel_dirs]
+    main_runs = [primary, baseline, *seeds]
+    if not all(run.deduplicated for run in main_runs):
+        raise ValueError("--model, --baseline, and --seed-run must use the deduplicated split.")
+    if any(run.deduplicated for run in rowlevel):
+        raise ValueError("--rowlevel runs must use the legacy row-level split.")
+    _require_same_test_rows(main_runs)
+
+    split_seed = primary.manifest["dataset"]["split_seed"]
+    dataset = load_dataset(config.paths.data_dir / f"dedup_seed{split_seed}")
+    labels = dataset.labels
+    finetuned = [primary, *seeds]
+    seed_scores = [macro_f1(r.splits["test"]["y_true"], r.predictions()) for r in finetuned]
+    calibration = _calibration(primary)
+    report = {
+        "created_utc": utc_timestamp(),
+        "dataset": {k: dataset.report[k] for k in ("audit", "split_sizes", "overlap",
+                                                   "raw_csv_sha256", "taxonomy_sha256")},
+        "models": [_summary(run, labels) for run in main_runs],
+        "seed_variation": {
+            "runs": len(finetuned),
+            "test_macro_f1_mean": float(np.mean(seed_scores)),
+            "test_macro_f1_std": float(np.std(seed_scores, ddof=1)) if len(seed_scores) > 1
+            else None,
+        },
+        "comparison": _comparison(primary, baseline),
+        "errors": _errors(primary, labels),
+        "calibration": calibration,
+        "label_source": _label_source([primary, baseline], dataset),
+        "leakage": [_leakage(run, config) for run in rowlevel],
+    }
+    out_dir.mkdir(parents=True, exist_ok=True)
+    write_json(out_dir / "model_evaluation.json", report)
+    (out_dir / "model_evaluation.md").write_text(render_markdown(report), encoding="utf-8")
+
+    export_dir = model_dir / "model"
+    if export_dir.is_dir():
+        # Serving reads this to report calibrated scores and withhold low-confidence answers.
+        write_json(export_dir / "calibration.json", {
+            "temperature": calibration["temperature"],
+            "uncertain_threshold": calibration["uncertain_threshold"]["threshold"],
+            "target_answered_accuracy": TARGET_ANSWERED_ACCURACY,
+        })
+    return report
+
+
+def _pct(value: float | None) -> str:
+    return "n/a" if value is None else f"{value * 100:.1f}%"
+
+
+def _ci(stat: dict) -> str:
+    return f"{stat['value']:.3f} [{stat['ci_low']:.3f}, {stat['ci_high']:.3f}]"
+
+
+def _p(value: float) -> str:
+    return "< 0.001" if value < 0.001 else f"{value:.3f}"
+
+
+def render_markdown(report: dict) -> str:
+    d = report["dataset"]
+    audit = d["audit"]
+    lines = [
+        "# Model Evaluation",
+        "",
+        "Generated by `python -m triage_training report`. All numbers are on the "
+        "deduplicated test split unless stated otherwise; intervals are 95% percentile "
+        "bootstrap intervals over test examples (2,000 resamples).",
+        "",
+        "## Data",
+        "",
+        f"- {audit['labeled_rows']:,} labeled MTSamples rows; "
+        f"{audit.get('duplicate_rows_removed', 0):,} duplicates removed; "
+        f"{audit.get('conflicting_descriptions_dropped', 0):,} descriptions with unresolvable "
+        f"conflicting labels dropped.",
+        f"- Splits: train {d['split_sizes']['train']:,} / val {d['split_sizes']['val']:,} / "
+        f"test {d['split_sizes']['test']:,}; shared descriptions between splits: "
+        f"{sum(d['overlap'].values())}.",
+        "",
+        "## Model comparison",
+        "",
+        "| Model | Test accuracy | Test macro F1 | Weighted F1 | Val macro F1 |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for m in report["models"]:
+        lines.append(f"| {m['name']} | {_ci(m['accuracy'])} | {_ci(m['macro_f1'])} | "
+                     f"{m['weighted_f1']:.3f} | {m['val_macro_f1']:.3f} |")
+    s = report["seed_variation"]
+    if s["test_macro_f1_std"] is not None:
+        lines += ["", f"Across {s['runs']} fine-tuning seeds, test macro F1 is "
+                      f"{s['test_macro_f1_mean']:.3f} ± {s['test_macro_f1_std']:.3f} (mean ± SD)."]
+
+    c = report["comparison"]
+    f1d, accd, mc = c["macro_f1_difference"], c["accuracy_difference"], c["mcnemar"]
+    lines += [
+        "",
+        f"### {c['a']} vs. {c['b']}",
+        "",
+        f"- Macro F1 difference: {f1d['difference']:+.3f} "
+        f"[{f1d['ci_low']:+.3f}, {f1d['ci_high']:+.3f}], one-sided bootstrap "
+        f"p = {_p(f1d['p_value_one_sided'])}.",
+        f"- Accuracy difference: {accd['difference']:+.3f} "
+        f"[{accd['ci_low']:+.3f}, {accd['ci_high']:+.3f}].",
+        f"- Exact McNemar test on paired correctness: only {c['a']} correct on "
+        f"{mc['only_a_correct']} rows, only {c['b']} correct on {mc['only_b_correct']}; "
+        f"p = {_p(mc['p_value'])}.",
+        "",
+        "## Errors",
+        "",
+        "| Specialty | Precision | Recall | F1 | Support |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for label, row in report["errors"]["per_class"].items():
+        lines.append(f"| {label} | {row['precision']:.3f} | {row['recall']:.3f} | "
+                     f"{row['f1-score']:.3f} | {int(row['support'])} |")
+    lines += ["", "Most frequent confusions (true → predicted):", ""]
+    lines += [f"- {e['true']} → {e['predicted']}: {e['count']}"
+              for e in report["errors"]["top_confusions"]]
+
+    lines += ["", "### Label provenance", "",
+              "Rows from catch-all specialties (Surgery, Radiology, SOAP notes, discharge "
+              "summaries) are labeled by keyword rules rather than a direct specialty mapping.",
+              "", "| Model | Direct-mapped rows | Keyword-rule rows |", "| --- | --- | --- |"]
+    for name, row in report["label_source"].items():
+        lines.append(f"| {name} | {_pct(row['direct']['accuracy'])} (n={row['direct']['n']}) | "
+                     f"{_pct(row['keyword']['accuracy'])} (n={row['keyword']['n']}) |")
+
+    cal = report["calibration"]
+    u = cal["uncertain_threshold"]
+    lines += [
+        "",
+        "## Calibration and abstention",
+        "",
+        f"Temperature scaling fitted on validation NLL gives T = {cal['temperature']:.2f}. "
+        f"Test ECE {cal['test_ece']['raw']:.3f} → {cal['test_ece']['calibrated']:.3f}; "
+        f"test NLL {cal['test_nll']['raw']:.3f} → {cal['test_nll']['calibrated']:.3f}.",
+        "",
+        "| Calibrated confidence ≥ | Coverage | Accuracy on answered |",
+        "| --- | --- | --- |",
+    ]
+    lines += [f"| {r['threshold']:.1f} | {_pct(r['coverage'])} | {_pct(r['accuracy'])} |"
+              for r in cal["selective_test"]]
+    lines += ["", f"The serving threshold is chosen on validation as the lowest confidence "
+                  f"reaching {_pct(u['target_answered_accuracy'])} accuracy: "
+                  f"{u['threshold']:.2f}. On test it answers {_pct(u['test']['coverage'])} of "
+                  f"inputs with {_pct(u['test']['accuracy'])} accuracy; the rest are returned "
+                  f"as uncertain."]
+
+    if report["leakage"]:
+        lines += [
+            "",
+            "## Leakage study: legacy row-level split",
+            "",
+            "The original split assigned rows, not descriptions, so identical descriptions "
+            "appeared in both train and test. Test rows are grouped by whether their "
+            "description also occurs in train, and whether the description carries "
+            "conflicting labels anywhere in the data. \"Seen, consistent\" isolates "
+            "memorisation; \"conflicting\" rows have no single correct answer.",
+            "",
+            "| Model | All test | Seen in train | Seen, consistent label | Unseen "
+            "| Conflicting label | Macro F1 |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for r in report["leakage"]:
+            cells = [f"{_pct(r[k]['accuracy'])} (n={r[k]['n']})"
+                     for k in ("all", "seen_in_train", "seen_consistent_label", "unseen",
+                               "conflicting_label")]
+            lines.append(f"| {r['name']} | {' | '.join(cells)} | {r['macro_f1']:.3f} |")
+    return "\n".join(lines) + "\n"
