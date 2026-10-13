@@ -24,6 +24,8 @@ mtsamples.csv
 | `python -m triage_training baseline` | `outputs/runs/baseline_*/` metrics and per-row probabilities |
 | `python -m triage_training finetune` | `outputs/runs/pubmedbert_*/model/` serving bundle |
 | `python -m triage_training finetune --smoke` | Tiny pipeline check that finishes on CPU |
+| `python -m triage_training evaluate-model` | Scores an existing export, e.g. the original Colab model |
+| `python -m triage_training report` | `reports/model_evaluation.md` statistical evaluation |
 
 All hyperparameters live in [configs/train.yaml](../configs/train.yaml). The loader
 rejects missing, unknown, or mistyped keys. `--seed` overrides the training seed for
@@ -101,3 +103,26 @@ inside it:
 scp -r <user>@<server>:~/Medical-Specialty-Triage-System/outputs/runs/<run>/model \
     models/pubmedbert_description
 ```
+
+## Evaluation report
+
+`report` combines saved per-row scores into an aggregate report that is safe to
+commit:
+
+- Test accuracy and macro F1 with 95% bootstrap intervals, and seed variation
+- Fine-tuned model vs. baseline: paired bootstrap difference and exact McNemar test
+- Per-class metrics, frequent confusions, and accuracy by label provenance
+  (direct specialty mapping vs. keyword rules)
+- Temperature scaling fitted on validation, ECE and NLL before and after, and the
+  confidence threshold below which the API should answer "uncertain"
+- Leakage study on the legacy row-level split: accuracy on test rows seen in train,
+  unseen, and with conflicting labels
+
+```bash
+python -m triage_training prepare-data --keep-duplicates
+python -m triage_training finetune --dataset rowlevel_seed42
+python -m triage_training report     --model outputs/runs/pubmedbert_dedup_seed42_trainseed42_<UTC>     --baseline outputs/runs/baseline_dedup_seed42_trainseed42_<UTC>     --seed-run outputs/runs/pubmedbert_dedup_seed42_trainseed1_<UTC>     --seed-run outputs/runs/pubmedbert_dedup_seed42_trainseed2_<UTC>     --rowlevel outputs/runs/baseline_rowlevel_seed42_trainseed42_<UTC>     --rowlevel outputs/runs/pubmedbert_rowlevel_seed42_trainseed42_<UTC>
+```
+
+`report` also writes `calibration.json` (temperature and uncertainty threshold) into
+the primary run's `model/` bundle for the serving API.

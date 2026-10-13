@@ -160,6 +160,50 @@ def run_finetune(
     return metrics
 
 
+def evaluate_export(model_dir: Path, dataset: PreparedDataset, run_dir: Path,
+                    batch_size: int = 32) -> dict:
+    """Score an exported model on prepared val/test splits, e.g. a model trained elsewhere."""
+    import json
+
+    import torch
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        model_dir, local_files_only=True, use_safetensors=True).to(device).eval()
+    if tuple(model.config.id2label[i] for i in range(len(dataset.labels))) != dataset.labels:
+        raise ValueError("Model labels do not match the prepared dataset labels.")
+    max_length = json.loads((model_dir / "training_config.json").read_text())["max_length"]
+
+    metrics = {}
+    for name in ("val", "test"):
+        part = dataset.splits[name]
+        texts = part["description"].tolist()
+        batches = []
+        for start in range(0, len(texts), batch_size):
+            batch = tokenizer(texts[start:start + batch_size], truncation=True,
+                              max_length=max_length, padding=True, return_tensors="pt").to(device)
+            with torch.inference_mode():
+                batches.append(model(**batch).logits.float().cpu().numpy())
+        logits = np.concatenate(batches)
+        y_true = part["label_id"].to_numpy()
+        metrics[name] = classification_metrics(y_true, _softmax(logits), dataset.labels)
+        save_predictions(run_dir / f"predictions_{name}.npz",
+                         part["source_row"].to_numpy(), y_true, logits)
+    write_json(run_dir / "metrics.json", metrics)
+    write_json(run_dir / "run_manifest.json", {
+        "model": "finetuned_encoder",
+        "evaluated_export": str(model_dir),
+        "created_utc": utc_timestamp(),
+        "dataset": {k: dataset.report[k] for k in ("raw_csv_sha256", "taxonomy_sha256",
+                                                   "deduplicated", "split_seed", "split_sizes")},
+        "git": git_state(),
+        "environment": environment(),
+    })
+    return metrics
+
+
 def _reload_check(export_dir: Path, texts: list[str], reference: np.ndarray,
                   max_length: int) -> dict:
     """Reload the export offline on CPU and confirm it reproduces the trained logits."""

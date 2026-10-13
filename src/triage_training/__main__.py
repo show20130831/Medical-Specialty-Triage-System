@@ -6,10 +6,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from triage_training.artifacts import utc_timestamp
-from triage_training.config import DEFAULT_CONFIG, ConfigError, load_config
-from triage_training.data import (
-    DataValidationError, dataset_name, load_dataset, prepare_dataset, save_dataset,
-)
+from triage_training.config import DEFAULT_CONFIG, load_config
+from triage_training.data import dataset_name, load_dataset, prepare_dataset, save_dataset
 
 logger = logging.getLogger("triage_training")
 
@@ -39,6 +37,20 @@ def main(argv: list[str] | None = None) -> None:
     commands.choices["finetune"].add_argument(
         "--smoke", action="store_true", help="tiny CPU-friendly run to check the pipeline")
 
+    evaluate = commands.add_parser("evaluate-model", help="score an exported model bundle")
+    evaluate.add_argument("--model-dir", type=Path, required=True)
+    evaluate.add_argument("--dataset", default="dedup_seed42")
+    evaluate.add_argument("--name", required=True, help="run name prefix, e.g. legacy_colab")
+
+    report = commands.add_parser("report", help="statistical evaluation report")
+    report.add_argument("--model", type=Path, required=True, help="primary fine-tuned run")
+    report.add_argument("--baseline", type=Path, required=True, help="baseline run, same split")
+    report.add_argument("--seed-run", type=Path, action="append", default=[],
+                        help="extra fine-tuned runs with other seeds")
+    report.add_argument("--rowlevel", type=Path, action="append", default=[],
+                        help="runs trained on the legacy row-level split")
+    report.add_argument("--out", type=Path, default=Path("reports"))
+
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
@@ -52,8 +64,18 @@ def main(argv: list[str] | None = None) -> None:
             logger.info("Overlap: %s", prepared.report["overlap"])
             return
 
+        if args.command == "report":
+            from triage_training.report import build_report
+            build_report(config, args.model, args.baseline, args.seed_run, args.rowlevel, args.out)
+            logger.info("Wrote evaluation report to %s", args.out)
+            return
+
         dataset = load_dataset(config.paths.data_dir / args.dataset)
-        if args.command == "baseline":
+        if args.command == "evaluate-model":
+            from triage_training.finetune import evaluate_export
+            run_dir = config.paths.runs_dir / f"{args.name}_{args.dataset}_{utc_timestamp()}"
+            metrics = evaluate_export(args.model_dir.resolve(), dataset, run_dir)
+        elif args.command == "baseline":
             from triage_training.baseline import run_baseline
             seed = config.split.seed if args.seed is None else args.seed
             run_dir = config.paths.runs_dir / (
@@ -68,7 +90,7 @@ def main(argv: list[str] | None = None) -> None:
                 f"{tag}_{args.dataset}_trainseed{finetune.seed}_{utc_timestamp()}")
             metrics = run_finetune(dataset, finetune, run_dir, smoke=args.smoke)
         logger.info("%s -> %s", _summary(metrics), run_dir)
-    except (ConfigError, DataValidationError) as exc:
+    except ValueError as exc:  # ConfigError and DataValidationError included
         parser.exit(1, f"error: {exc}\n")
 
 
