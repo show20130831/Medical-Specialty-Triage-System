@@ -1,5 +1,5 @@
 {
-  "created_utc": "20261014T091730Z",
+  "created_utc": "20261014T091904Z",
   "decision": "PASS",
   "model": {
     "weights_sha256": "a2f4ad5c6d97bdd224e3703b00e70ea2686e5e3cbc0dcc48567cc21fa6b39bc2",
@@ -7,8 +7,8 @@
     "training_commit": "4d8e6690e03a7da78bffa8e63a59ec483187a49f"
   },
   "validated_with": {
-    "commit": "5b61cb5fb5807a28fd1b679804ab58518d8cfe35",
-    "dirty": true
+    "commit": "3a9459dc63b9393d7da4413c9881d5e2b42c21fe",
+    "dirty": false
   },
   "checks": [
     {
@@ -90,8 +90,8 @@
     },
     {
       "check": "Single-request CPU latency p95 (ms)",
-      "value": 67.03186500044467,
-      "requirement": "<= 500 (p50 60 ms)",
+      "value": 67.01030000049286,
+      "requirement": "<= 500 (p50 61 ms)",
       "passed": true,
       "kind": "gate"
     },
