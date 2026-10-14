@@ -243,6 +243,11 @@ clinician-curated cases, or lay-language text) has been done.
   318 validation rows gives a 95% range of 0.00–0.71; at the low end the model would not
   abstain at all. The release gate therefore checks the resulting test behaviour, not
   the threshold value.
+- **Decision (2026-10-14): keep the 90% target and the 0.65 threshold.** Raising the
+  target would narrow the threshold range, but the alternatives were inspected on test
+  data, so choosing one now would bias the reported test figures. A new target needs a
+  product rationale and goes through change control
+  ([validation-and-operations.md §6](validation-and-operations.md#6-change-control-and-retraining)).
 - **Calibration is uneven across confidence bands.** Test rows scored 0.65–0.80 are
   correct only 42.9% of the time (n = 28) and rows scored 0.80–0.90 79.3% (n = 29),
   while rows at 0.95 or above are 98.7% correct (n = 223). Overall ECE hides this.
