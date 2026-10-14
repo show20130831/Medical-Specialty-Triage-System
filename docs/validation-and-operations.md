@@ -40,7 +40,7 @@ passes; see [the release report](../reports/release_validation.md).
 | Expected labels, 24 clear synthetic cases | 100% | 100% | Basic competence on unambiguous descriptions |
 | Invariance to case, punctuation, spacing, 9 variants | 100% | 100% | Surface edits must not change the answer |
 | Abstention on ambiguous descriptions, 5 cases | ≥ 80% | 80% | Ambiguity must surface as `uncertain` |
-| Single-request CPU latency p95 | ≤ 500 ms | 92 ms | Interactive use on CPU |
+| Single-request CPU latency p95 | ≤ 500 ms | 90 ms | Interactive use on CPU |
 | Out-of-scope inputs answered confidently | Reported only | 5 of 5 | Known gap; gating on it would block every bundle |
 
 ### Limits of the gate
