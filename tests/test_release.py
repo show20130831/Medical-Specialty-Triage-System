@@ -72,3 +72,27 @@ def test_latency_and_report_rendering():
                                         "score": 0.9}]}
     markdown = render_markdown(result)
     assert "Decision: **FAIL**" in markdown and "not marked uncertain" in markdown
+
+
+def test_out_of_taxonomy_analysis_scores_only_excluded_specialties(tmp_path):
+    from training_fixtures import synthetic_rows, write_config
+
+    from triage_training.release import out_of_taxonomy_analysis
+
+    rows = synthetic_rows(per_label=6) + [
+        {"description": "itchy rash on arms", "medical_specialty": "Dermatology", "keywords": ""},
+        {"description": "Itchy rash on arms.", "medical_specialty": "Dermatology", "keywords": ""},
+        {"description": "infant checkup", "medical_specialty": "Pediatrics - Neonatal",
+         "keywords": ""},
+    ]
+    config = write_config(tmp_path, rows)
+    seen = []
+
+    def predict(text):
+        seen.append(text)
+        return Prediction("Gen", 0.95 if "rash" in text else 0.4, uncertain="rash" not in text)
+
+    result = out_of_taxonomy_analysis(predict, config)
+    assert result["descriptions"] == 2 and result["specialties"] == 2
+    assert result["uncertain_rate"] == 0.5
+    assert not any(text.startswith("synthetic") for text in seen)

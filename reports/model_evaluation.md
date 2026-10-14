@@ -80,7 +80,43 @@ Temperature scaling fitted on validation NLL gives T = 0.95. Test ECE 0.062 → 
 | 0.8 | 85.4% | 95.6% |
 | 0.9 | 78.1% | 97.1% |
 
-The serving threshold is chosen on validation as the lowest confidence reaching 90.0% accuracy: 0.65. On test it answers 92.5% of inputs with 91.6% accuracy; the rest are returned as uncertain.
+The serving threshold is chosen on validation as the lowest confidence reaching 90.0% accuracy: 0.65. On test it answers 92.5% [89.7%, 95.0%] of inputs with 91.6% [88.6%, 94.4%] accuracy; the rest are returned as uncertain.
+
+**Threshold stability.** Re-choosing the threshold on 1,000 bootstrap resamples of the validation split gives a median of 0.64 and a 95% range of 0.00–0.71. Across that range, test coverage runs from 91.0% to 100.0% and answered accuracy from 88.4% to 92.3%. With 318 validation rows the exact threshold is not stable; the release gate checks the resulting test behaviour rather than the threshold value.
+
+Brier score 0.174 → 0.175. Scores are relative probabilities over eight closed-set groups, not the probability that a suggestion is clinically correct.
+
+| Calibrated confidence | Test rows | Mean confidence | Accuracy |
+| --- | --- | --- | --- |
+| 0.00–0.50 | 6 | 0.450 | 50.0% |
+| 0.50–0.65 | 24 | 0.598 | 50.0% |
+| 0.65–0.80 | 28 | 0.741 | 42.9% |
+| 0.80–0.90 | 29 | 0.865 | 79.3% |
+| 0.90–0.95 | 88 | 0.933 | 93.2% |
+| 0.95–1.00 | 223 | 0.969 | 98.7% |
+
+| Specialty (true label) | Test rows | Marked uncertain | Accuracy when answered |
+| --- | --- | --- | --- |
+| Cardiovascular & Pulmonary | 70 | 2.9% | 97.1% |
+| ENT & Ophthalmology | 40 | 5.0% | 97.4% |
+| Gastroenterology | 40 | 12.5% | 77.1% |
+| General Medicine | 77 | 14.3% | 81.8% |
+| Neurology | 46 | 8.7% | 88.1% |
+| OB-GYN | 30 | 10.0% | 96.3% |
+| Orthopedics | 67 | 0.0% | 98.5% |
+| Urology | 28 | 10.7% | 96.0% |
+
+## Training and serving parity
+
+The served bundle was re-scored on CPU (fp32) and compared with the GPU (bf16) evaluation on 398 test rows, using the serving calibration.
+
+| Agreement | Value |
+| --- | --- |
+| Top label | 99.7% |
+| Top-3 order | 97.7% |
+| Uncertain flag | 99.7% |
+| Largest probability difference | 0.015 |
+| CPU test macro F1 / accuracy | 0.886 / 88.2% |
 
 ## Leakage study: row-level split
 

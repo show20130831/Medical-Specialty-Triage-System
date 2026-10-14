@@ -1,5 +1,5 @@
 {
-  "created_utc": "20261014T084325Z",
+  "created_utc": "20261014T091059Z",
   "dataset": {
     "audit": {
       "raw_rows": 4999,
@@ -214,6 +214,54 @@
       "raw": 0.3760416942518147,
       "calibrated": 0.3749352962685279
     },
+    "test_brier": {
+      "raw": 0.17353109503480765,
+      "calibrated": 0.1749042503510452
+    },
+    "reliability_test": [
+      {
+        "low": 0.0,
+        "high": 0.5,
+        "n": 6,
+        "mean_confidence": 0.449766483528598,
+        "accuracy": 0.5
+      },
+      {
+        "low": 0.5,
+        "high": 0.65,
+        "n": 24,
+        "mean_confidence": 0.597722343662486,
+        "accuracy": 0.5
+      },
+      {
+        "low": 0.65,
+        "high": 0.8,
+        "n": 28,
+        "mean_confidence": 0.7410489354258327,
+        "accuracy": 0.42857142857142855
+      },
+      {
+        "low": 0.8,
+        "high": 0.9,
+        "n": 29,
+        "mean_confidence": 0.8652086085933313,
+        "accuracy": 0.7931034482758621
+      },
+      {
+        "low": 0.9,
+        "high": 0.95,
+        "n": 88,
+        "mean_confidence": 0.9329720283367451,
+        "accuracy": 0.9318181818181818
+      },
+      {
+        "low": 0.95,
+        "high": 1.0,
+        "n": 223,
+        "mean_confidence": 0.9692104386482564,
+        "accuracy": 0.9865470852017937
+      }
+    ],
     "selective_test": [
       {
         "threshold": 0.0,
@@ -264,6 +312,74 @@
         "threshold": 0.65,
         "coverage": 0.9246231155778895,
         "accuracy": 0.9157608695652174
+      },
+      "test_ci": {
+        "coverage": {
+          "ci_low": 0.8969849246231156,
+          "ci_high": 0.949748743718593
+        },
+        "accuracy": {
+          "ci_low": 0.886241773132017,
+          "ci_high": 0.9444482917820868
+        }
+      },
+      "stability": {
+        "validation_resamples": 1000,
+        "threshold_median": 0.64,
+        "threshold_ci_low": 0.0,
+        "threshold_ci_high": 0.71,
+        "test_at_ci_low": {
+          "threshold": 0.0,
+          "coverage": 1.0,
+          "accuracy": 0.8844221105527639
+        },
+        "test_at_ci_high": {
+          "threshold": 0.71,
+          "coverage": 0.9095477386934674,
+          "accuracy": 0.9226519337016574
+        }
+      },
+      "per_class_test": {
+        "Cardiovascular & Pulmonary": {
+          "n": 70,
+          "abstention_rate": 0.02857142857142857,
+          "answered_accuracy": 0.9705882352941176
+        },
+        "ENT & Ophthalmology": {
+          "n": 40,
+          "abstention_rate": 0.05,
+          "answered_accuracy": 0.9736842105263158
+        },
+        "Gastroenterology": {
+          "n": 40,
+          "abstention_rate": 0.125,
+          "answered_accuracy": 0.7714285714285715
+        },
+        "General Medicine": {
+          "n": 77,
+          "abstention_rate": 0.14285714285714285,
+          "answered_accuracy": 0.8181818181818182
+        },
+        "Neurology": {
+          "n": 46,
+          "abstention_rate": 0.08695652173913043,
+          "answered_accuracy": 0.8809523809523809
+        },
+        "OB-GYN": {
+          "n": 30,
+          "abstention_rate": 0.1,
+          "answered_accuracy": 0.9629629629629629
+        },
+        "Orthopedics": {
+          "n": 67,
+          "abstention_rate": 0.0,
+          "answered_accuracy": 0.9850746268656716
+        },
+        "Urology": {
+          "n": 28,
+          "abstention_rate": 0.10714285714285714,
+          "answered_accuracy": 0.96
+        }
       }
     }
   },
@@ -389,5 +505,16 @@
       },
       "macro_f1": 0.7956501584829225
     }
-  ]
+  ],
+  "serving_parity": {
+    "reference_run": "pubmedbert_dedup_seed42_trainseed42_20261013T164358Z",
+    "compared_run": "servingcpu_dedup_seed42_20261014T040327Z",
+    "rows": 398,
+    "label_agreement": 0.9974874371859297,
+    "top3_order_agreement": 0.9773869346733668,
+    "uncertain_agreement": 0.9974874371859297,
+    "max_abs_probability_difference": 0.014952572901751116,
+    "compared_macro_f1": 0.8864409931524054,
+    "compared_accuracy": 0.8819095477386935
+  }
 }

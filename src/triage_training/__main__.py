@@ -52,6 +52,8 @@ def main(argv: list[str] | None = None) -> None:
                         help="extra fine-tuned runs with other seeds")
     report.add_argument("--rowlevel", type=Path, action="append", default=[],
                         help="runs trained on the row-level split")
+    report.add_argument("--serving-run", type=Path,
+                        help="the primary bundle re-scored on CPU with evaluate-model")
     report.add_argument("--out", type=Path, default=Path("reports"))
 
     splits = commands.add_parser("summarize-splits",
@@ -64,6 +66,8 @@ def main(argv: list[str] | None = None) -> None:
     gate.add_argument("--evaluation", type=Path, default=Path("reports/model_evaluation.json"))
     gate.add_argument("--criteria", type=Path, default=Path("configs/release_criteria.yaml"))
     gate.add_argument("--out", type=Path, default=Path("reports"))
+    gate.add_argument("--out-of-taxonomy", action="store_true",
+                      help="also score excluded-specialty descriptions from the raw data")
 
     drift = commands.add_parser("monitor-drift", help="compare a /metrics snapshot with reference")
     drift.add_argument("--snapshot", type=Path, required=True, help="JSON saved from GET /metrics")
@@ -90,7 +94,8 @@ def main(argv: list[str] | None = None) -> None:
         if args.command == "validate-model":
             from triage_training.release import run_release_validation
             result = run_release_validation(args.model_dir.resolve(), args.evaluation,
-                                            args.criteria, args.out)
+                                            args.criteria, args.out,
+                                            config if args.out_of_taxonomy else None)
             logger.info("Release decision: %s (report in %s)", result["decision"], args.out)
             if result["decision"] != "PASS":
                 sys.exit(1)
@@ -110,7 +115,8 @@ def main(argv: list[str] | None = None) -> None:
 
         if args.command == "report":
             from triage_training.report import build_report
-            build_report(config, args.model, args.baseline, args.seed_run, args.rowlevel, args.out)
+            build_report(config, args.model, args.baseline, args.seed_run, args.rowlevel, args.out,
+                         args.serving_run)
             logger.info("Wrote evaluation report to %s", args.out)
             return
 
