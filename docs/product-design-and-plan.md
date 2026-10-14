@@ -1,8 +1,10 @@
 # Product Design and Delivery Plan
 
 **Last updated:** 2026-10-14
-**Status:** Model development, evaluation, and calibrated serving are complete and merged.
-Validation and operations is the next phase (§17).
+**Status:** Model development, evaluation, and calibrated serving are merged. The
+validation and operations MVP (release gate, traceability, aggregate monitoring, drift
+check, runbook) is complete and in review; see
+[validation-and-operations.md](validation-and-operations.md).
 
 ## 1. Product Definition
 
@@ -31,7 +33,7 @@ technology. It must show the whole ML lifecycle, not only model training:
 | Integrating models into products | FastAPI service and browser client with asset validation (§9–§11) |
 | Quality assurance before deployment | 81 automated tests, CI on Ubuntu and Windows, reload and parity checks (§14) |
 | Data governance | Text-free artifacts, privacy-safe logging, license-driven hosting decision (§12–§13) |
-| AI DevOps, monitoring | Planned next phase (§17) |
+| AI DevOps, monitoring | Release gate, `/version`, aggregate `/metrics`, drift check, runbook, CI with service smoke test and Docker build (§14, §17) |
 
 ### Product goal
 
@@ -65,8 +67,8 @@ long notes are outside the training distribution.
 User opens browser
   -> same-origin web page (synthetic example buttons available)
   -> POST /predict {"description": ...}
-  -> FastAPI validates: non-blank, at most 10,000 characters (else 422)
-  -> tokenizer truncates to 512 tokens
+  -> body at most 16 KB (else 413); description non-blank, at most 1,000
+     characters (else 422), so no input reaches the 512-token limit
   -> PubMedBERT CPU inference (model loaded once per process)
   -> temperature-scaled softmax (T = 0.95)
   -> top-3 specialties; uncertain = top score < 0.65
@@ -265,20 +267,23 @@ clinician-curated cases, or lay-language text) has been done.
 | Predictor | `triage_system.predictor` | Tokenise, infer, temperature scaling, top-3, abstention |
 | API | `triage_system.api` | Routes, request validation, status codes, typed responses |
 | Logging middleware | `triage_system.logging_config` | Method, path, status, duration; never request bodies |
+| Monitoring | `triage_system.monitoring` | In-memory aggregate counters and histograms; no per-request records |
+| Release gate | `triage_training.release` | Offline criteria, behavioural cases, CPU latency, pass/fail report |
+| Drift check | `triage_training.drift` | PSI and rate checks of `/metrics` snapshots against the reference profile |
 | Browser client | `triage_system/web/index.html` | Input, examples, ranked results, uncertain message |
 | Packaging | `Dockerfile`, `compose.yaml` | CPU image without weights; model mounted read-only |
 
 ### Runtime contract
 
-- Input: English `description`, 1–10,000 characters, non-blank
-- Model sequence length: 512 tokens (no training description reached it)
+- Input: English `description`, 1–1,000 characters, non-blank; request body ≤ 16 KB
+- Model sequence length: 512 tokens; accepted inputs are far shorter, so nothing is
+  truncated (training maximum 433 characters)
 - Inference: CPU, fp32, single process, model cached after first load
 - Output: top label, calibrated score, `uncertain` flag, top three
 
-`TRIAGE_HOST` and `TRIAGE_PORT` are parsed and validated by `triage_system.config`, but
-nothing calls that validation at startup: the Docker image passes them to uvicorn through
-shell expansion, and the local command line sets host and port explicitly. They work in
-Docker but are never validated, and have no effect locally.
+The service starts with `python -m triage_system`, locally and in Docker, which validates
+`TRIAGE_MODEL_DIR`, `TRIAGE_HOST`, and `TRIAGE_PORT` before starting uvicorn. Invalid
+values stop startup with a clear message.
 
 ## 10. API Contract
 
@@ -287,7 +292,9 @@ Docker but are never validated, and have no effect locally.
 | `GET /` | Browser client (same origin) | 200 |
 | `GET /health` | Process liveness; does not load the model | 200 `{"status": "ok"}` |
 | `GET /ready` | Model can be loaded and serve | 200 `{"status": "ready"}`; 503 with reason |
-| `POST /predict` | Classify one description | 200; 422 blank or too long; 503 model unavailable; 500 prediction failure |
+| `POST /predict` | Classify one description | 200; 422 blank or over 1,000 characters; 413 body over 16 KB; 411 no `Content-Length`; 503 model unavailable; 500 prediction failure |
+| `GET /version` | Service version, served weights SHA-256, training commit, calibration | 200; 503 model unavailable |
+| `GET /metrics` | Aggregate counters since process start (labels, uncertain, score, length, latency, status) | 200 |
 | `GET /docs` | OpenAPI documentation (FastAPI default) | 200 |
 
 ```json
@@ -313,6 +320,7 @@ are expected to show it as a suggestion for manual review, as the browser client
 | `model.safetensors`, `config.json`, `tokenizer.json`, `tokenizer_config.json` | Model and tokenizer |
 | `training_config.json` | Serving contract (input type, 512 tokens, labels) and hyperparameters |
 | `calibration.json` | Temperature and abstain threshold (optional; defaults to uncalibrated, no abstention) |
+| `monitoring_reference.json` | Test-set prediction profile in `/metrics` buckets, for drift checks |
 | `metrics.json`, `data_report.json`, `run_manifest.json`, `reload_check.json` | Evaluation, data audit, provenance, integrity |
 
 - The bundle is produced on the training server and copied to the serving machine; the
@@ -324,8 +332,10 @@ are expected to show it as a suggestion for manual review, as the browser client
 - The weight file SHA-256 (`a2f4ad5c…`) matches on the training server, the serving
   machine, and the archived copy.
 - Weights are private because the training data has no stated license.
-- Versioning is currently the archive's commit history; there is no explicit release
-  tag, version endpoint, or rollback procedure yet (§17).
+- `GET /version` reports the SHA-256 of the served weights, computed at load time. Each
+  archive upload is a revision; rollback restores a previous revision
+  ([runbook](validation-and-operations.md#5-response-runbook)). There are no signed
+  release tags yet.
 
 ## 12. Privacy, Security, and Data Governance
 
@@ -338,13 +348,16 @@ Implemented:
 - The Docker Compose model mount is read-only; model loading uses local files only with
   remote code disabled.
 - Demonstrations use synthetic descriptions only.
+- Monitoring keeps aggregate counters in memory only; no per-request records, even
+  without text. Saved snapshots are kept for at most 90 days by operators only.
+- Request bodies over 16 KB are rejected before parsing; the container runs as a
+  non-root user with a health check.
 
 Known gaps:
 
 - No authentication, authorisation, or rate limiting.
 - Validation error responses (422) echo the submitted input back to the caller, as
   FastAPI does by default. It is not logged, but a production service would strip it.
-- The Docker image runs as root and has no `HEALTHCHECK`.
 - No dependency vulnerability scanning.
 - A production deployment would also need a retention policy, encryption in transit,
   audit logging, and a formal privacy and regulatory review.
@@ -354,7 +367,7 @@ Known gaps:
 | Option | Status | Reason |
 | --- | --- | --- |
 | Local Python (uvicorn) | Done | Primary development and demo path |
-| Docker / Docker Compose (CPU) | Done | Reproducible runtime; model mounted read-only |
+| Docker / Docker Compose (CPU) | Done | Reproducible runtime; non-root user, health check, model mounted read-only |
 | Public hosted demo | Not planned | The data license is unspecified, and the free Hugging Face Spaces tier no longer runs Docker apps (paid plan required) |
 | Other free hosting | Not done | Free tiers typically offer 512 MB memory; PyTorch plus the 438 MB model needs an estimated 1.5–2 GB |
 | Demo media in README | Done | GIF and screenshots captured from the served model |
@@ -369,13 +382,16 @@ redistributed.
 - Work happens on feature branches and lands on `main` through pull requests (earlier
   ones squash-merged, recent ones merged with merge commits).
 - CI (GitHub Actions) runs the full test suite on Ubuntu and Windows with Python 3.10 and
-  checks dependency compatibility. CI does not need the dataset, a GPU, or the model;
-  training tests use synthetic data.
-- 81 tests cover API behaviour and status codes, input validation, model asset and
+  checks dependency compatibility; serves a tiny randomly initialised BERT bundle through
+  every route; and builds the Docker image, checking the non-root user, `/health`, and
+  `/ready`. CI does not need the dataset, a GPU, or the private model.
+- 99 tests cover API behaviour and status codes, input and body limits, model asset and
   calibration validation, offline loading contracts, prediction ranking and abstention,
-  configuration, privacy-safe logging, data pipeline invariants, baseline, statistics
-  (checked against scikit-learn and known values), and report generation.
-- Not yet in CI: tests against the real model, linting, Docker image build.
+  configuration and startup, privacy-safe logging and metrics, data pipeline invariants,
+  baseline, statistics (checked against scikit-learn and known values), report
+  generation, release gate, and drift checks.
+- Not yet in CI: the release gate against the real model (it needs the private bundle),
+  linting.
 - A repository ruleset protects `main`: changes must arrive through a pull request,
   both CI checks must pass on a branch that is up to date with `main`, and force pushes
   and branch deletion are blocked.
@@ -398,6 +414,12 @@ Done outside Git:
 - Retraining on the RTX 4090 (baseline, 3 seeds, row-level split comparison)
 - Model bundle archived in a private Hugging Face model repository with a model card
 
+In review:
+
+- Product design document and results wording (#22)
+- Validation and operations MVP: release gate, `/version`, `/metrics`, drift check,
+  runbook, input and body limits, startup validation, non-root Docker, CI jobs
+
 Not done: see §16 and §17.
 
 ## 16. Known Limitations and Risks
@@ -414,28 +436,22 @@ Not done: see §16 and §17.
 | Row-level bootstrap assumes independent test rows | Intervals may be slightly narrow if templated descriptions cluster | Near-duplicate check (median similarity 0.39, 4.0% ≥ 0.8) suggests the effect is small |
 | Training may not have converged (best epoch = last) | Possible headroom left | Not explored |
 | Data license unspecified | Weights cannot be shared openly | Private repository; no public hosting |
-| No production monitoring | Drift or degradation would go unnoticed | Planned (§17) |
+| Monitoring has no ground-truth labels | Accuracy loss can go unnoticed; drift only signals change | Aggregate drift checks; out-of-scope traffic raised only WARN in the demonstration |
 
 ## 17. Roadmap
 
-### Next phase: validation and operations
+### Validation and operations (MVP done)
 
-Planned as a separate document (`docs/validation-and-operations.md`), covering:
-
-1. **Release validation:** acceptance criteria as configuration, behavioural tests on a
-   synthetic golden set, CPU latency, and a pass/fail release report.
-2. **Traceability:** a version endpoint (model hash, training commit, calibration) and
-   model version on every prediction record.
-3. **Monitoring:** privacy-safe prediction records (label, score, uncertain flag, input
-   length, latency; no text), a metrics endpoint, and drift checks against the test
-   distribution.
-4. **Response:** runbook, rollback by model revision, and retraining conditions with
-   predefined acceptance criteria.
+Described in [validation-and-operations.md](validation-and-operations.md): release gate
+with criteria in configuration, behavioural cases and latency; `/version` and evaluation
+linkage; aggregate `/metrics`, reference profile, and drift check with a demonstration;
+runbook, rollback, and change control for retraining.
 
 ### Later
 
-- Model release gate in CI using a read-only token for the private model
-- Docker image build and publish in CI; non-root image with health check
+- Release gate in CI using a read-only token for the private model; publish images
+- Scheduled drift checks with notifications; dashboards
+- Reviewed label sample from real use to measure accuracy, not only drift
 - Authentication, rate limiting, dependency scanning, load testing
 - Evaluation on lay-language and out-of-scope inputs; out-of-distribution detection
 - Clinician review of a label sample; taxonomy revision
@@ -464,9 +480,7 @@ keeps answered accuracy at or above 90%. The served model meets all three.
    example as an "Other" class, instead of being dropped?
 3. Is selecting the abstain threshold on 318 validation rows stable enough, or should it
    use cross-validation?
-4. Should the 10,000-character input limit be lowered closer to the training
-   distribution (maximum 433 characters)?
-5. Is a 90% answered-accuracy target appropriate for a routing aid, and how should
+4. Is a 90% answered-accuracy target appropriate for a routing aid, and how should
    uncertain cases be handled in a real workflow?
-6. Which monitoring signals matter most when no ground-truth labels arrive after
-   deployment?
+5. Without ground-truth labels, which additional signal would detect out-of-scope
+   traffic better than label and confidence drift?

@@ -1,5 +1,5 @@
 {
-  "created_utc": "20261014T083711Z",
+  "created_utc": "20261014T084325Z",
   "dataset": {
     "audit": {
       "raw_rows": 4999,
@@ -266,6 +266,11 @@
         "accuracy": 0.9157608695652174
       }
     }
+  },
+  "model_run": {
+    "run": "pubmedbert_dedup_seed42_trainseed42_20261013T164358Z",
+    "created_utc": "20261013T164433Z",
+    "git_commit": "4d8e6690e03a7da78bffa8e63a59ec483187a49f"
   },
   "label_source": {
     "PubMedBERT (seed 42)": {

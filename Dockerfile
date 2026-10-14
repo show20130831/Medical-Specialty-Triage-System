@@ -11,7 +11,12 @@ COPY src ./src
 
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir "torch==2.14.0" --index-url https://download.pytorch.org/whl/cpu \
-    && python -m pip install --no-cache-dir ".[inference]"
+    && python -m pip install --no-cache-dir ".[inference]" \
+    && useradd --create-home --uid 10001 app
 
+USER app
 EXPOSE 8000
-CMD ["sh", "-c", "uvicorn triage_system.api:app --host ${TRIAGE_HOST} --port ${TRIAGE_PORT}"]
+# Liveness only: /health does not load the model. Use /ready for readiness probes.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen(f\"http://127.0.0.1:{os.environ['TRIAGE_PORT']}/health\", timeout=4)"]
+CMD ["python", "-m", "triage_system"]

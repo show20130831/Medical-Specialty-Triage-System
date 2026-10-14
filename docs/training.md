@@ -26,6 +26,8 @@ mtsamples.csv
 | `python -m triage_training finetune --smoke` | Tiny pipeline check that finishes on CPU |
 | `python -m triage_training evaluate-model` | Scores an existing model bundle on a prepared split, e.g. to check CPU parity |
 | `python -m triage_training report` | `reports/model_evaluation.md` statistical evaluation |
+| `python -m triage_training validate-model` | `reports/release_validation.md` release gate decision |
+| `python -m triage_training monitor-drift` | Drift check of a `/metrics` snapshot against the reference |
 
 All hyperparameters live in [configs/train.yaml](../configs/train.yaml). The loader
 rejects missing, unknown, or mistyped keys. `--seed` overrides the training seed for
@@ -124,5 +126,7 @@ python -m triage_training finetune --dataset rowlevel_seed42
 python -m triage_training report     --model outputs/runs/pubmedbert_dedup_seed42_trainseed42_<UTC>     --baseline outputs/runs/baseline_dedup_seed42_trainseed42_<UTC>     --seed-run outputs/runs/pubmedbert_dedup_seed42_trainseed1_<UTC>     --seed-run outputs/runs/pubmedbert_dedup_seed42_trainseed2_<UTC>     --rowlevel outputs/runs/baseline_rowlevel_seed42_trainseed42_<UTC>     --rowlevel outputs/runs/pubmedbert_rowlevel_seed42_trainseed42_<UTC>
 ```
 
-`report` also writes `calibration.json` (temperature and uncertainty threshold) into
-the primary run's `model/` bundle for the serving API.
+`report` also writes `calibration.json` (temperature and uncertainty threshold) and
+`monitoring_reference.json` (expected prediction profile for drift checks) into the
+primary run's `model/` bundle. Release validation and monitoring are described in
+[validation-and-operations.md](validation-and-operations.md).

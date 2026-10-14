@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -51,6 +52,19 @@ def main(argv: list[str] | None = None) -> None:
                         help="runs trained on the row-level split")
     report.add_argument("--out", type=Path, default=Path("reports"))
 
+    gate = commands.add_parser("validate-model", help="release gate for a model bundle")
+    gate.add_argument("--model-dir", type=Path, required=True)
+    gate.add_argument("--evaluation", type=Path, default=Path("reports/model_evaluation.json"))
+    gate.add_argument("--criteria", type=Path, default=Path("configs/release_criteria.yaml"))
+    gate.add_argument("--out", type=Path, default=Path("reports"))
+
+    drift = commands.add_parser("monitor-drift", help="compare a /metrics snapshot with reference")
+    drift.add_argument("--snapshot", type=Path, required=True, help="JSON saved from GET /metrics")
+    drift.add_argument("--reference", type=Path, required=True,
+                       help="monitoring_reference.json from the served bundle")
+    drift.add_argument("--thresholds", type=Path, default=Path("configs/monitoring.yaml"))
+    drift.add_argument("--out", type=Path, default=Path("reports"))
+
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
@@ -63,6 +77,21 @@ def main(argv: list[str] | None = None) -> None:
             logger.info("Audit: %s", prepared.report["audit"])
             logger.info("Overlap: %s", prepared.report["overlap"])
             return
+
+        if args.command == "validate-model":
+            from triage_training.release import run_release_validation
+            result = run_release_validation(args.model_dir.resolve(), args.evaluation,
+                                            args.criteria, args.out)
+            logger.info("Release decision: %s (report in %s)", result["decision"], args.out)
+            if result["decision"] != "PASS":
+                sys.exit(1)
+            return
+
+        if args.command == "monitor-drift":
+            from triage_training.drift import run_drift_check
+            result = run_drift_check(args.snapshot, args.reference, args.thresholds, args.out)
+            logger.info("Drift status: %s (report in %s)", result["status"], args.out)
+            sys.exit({"WARN": 1, "ALERT": 2}.get(result["status"], 0))
 
         if args.command == "report":
             from triage_training.report import build_report

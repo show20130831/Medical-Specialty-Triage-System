@@ -1,0 +1,24 @@
+# Release gate for a model bundle. `python -m triage_training validate-model` checks
+# every criterion and exits non-zero if any fails. Offline metrics come from the
+# evaluation report of the run that produced the bundle; behavioural cases and latency
+# are measured against the bundle itself on CPU.
+
+offline_metrics:
+  test_macro_f1_min: 0.85
+  # Lower bound of the 95% paired bootstrap interval of (model - baseline) macro F1.
+  macro_f1_gain_over_baseline_ci_low_min: 0.0
+  per_class_f1_min: 0.75
+  calibrated_ece_max: 0.08
+  answered_accuracy_min: 0.90
+  answered_coverage_min: 0.85
+
+behavioural:
+  cases: tests/golden/behavioural_cases.yaml
+  expected_label_pass_rate_min: 1.0
+  invariance_pass_rate_min: 1.0
+  abstention_pass_rate_min: 0.8
+
+latency:
+  warmup_requests: 5
+  measured_requests: 50
+  p95_ms_max: 500

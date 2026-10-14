@@ -12,6 +12,9 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from triage_system.monitoring import (
+    LENGTH_EDGES, SCORE_EDGES, bucket_index, bucket_labels,
+)
 from triage_training.artifacts import utc_timestamp, write_json
 from triage_training.config import TrainingConfig
 from triage_training.data import PreparedDataset, description_key, load_dataset
@@ -133,6 +136,30 @@ def _calibration(run: RunScores) -> dict:
             "threshold": threshold,
             "test": selective_prediction(calibrated_test, test["y_true"], [threshold])[0],
         },
+    }
+
+
+def _monitoring_reference(run: RunScores, dataset: PreparedDataset, temperature: float,
+                          threshold: float) -> dict:
+    """Expected production distributions, in the same buckets as the /metrics snapshot."""
+    test = dataset.splits["test"].set_index("source_row").loc[run.splits["test"]["source_row"]]
+    probabilities = calibrate(run.splits["test"]["logits"], temperature)
+    top = probabilities.max(axis=1)
+    labels = [dataset.labels[i] for i in probabilities.argmax(axis=1)]
+
+    def histogram(values, edges):
+        counts = [0] * (len(edges) + 1)
+        for value in values:
+            counts[bucket_index(value, edges)] += 1
+        return dict(zip(bucket_labels(edges), counts))
+
+    return {
+        "source": "calibrated predictions on the deduplicated test split",
+        "predictions": int(len(top)),
+        "uncertain": int((top < threshold).sum()),
+        "label_counts": {label: labels.count(label) for label in dataset.labels},
+        "score_histogram": histogram(top, SCORE_EDGES),
+        "length_histogram": histogram(test["description"].str.len(), LENGTH_EDGES),
     }
 
 
@@ -260,6 +287,9 @@ def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
         "comparison": _comparison(primary, baseline),
         "errors": _errors(primary, labels),
         "calibration": calibration,
+        "model_run": {"run": primary.run_dir.name,
+                      "created_utc": primary.manifest.get("created_utc"),
+                      "git_commit": primary.manifest.get("git", {}).get("commit")},
         "label_source": _label_source([primary, baseline], dataset),
         "keyword_label_overlap": _keyword_label_overlap(
             primary, dataset, load_taxonomy(config.data.taxonomy)),
@@ -278,6 +308,10 @@ def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
             "uncertain_threshold": calibration["uncertain_threshold"]["threshold"],
             "target_answered_accuracy": TARGET_ANSWERED_ACCURACY,
         })
+        # Baseline for drift checks against the service's /metrics snapshots.
+        write_json(export_dir / "monitoring_reference.json", _monitoring_reference(
+            primary, dataset, calibration["temperature"],
+            calibration["uncertain_threshold"]["threshold"]))
     return report
 
 
