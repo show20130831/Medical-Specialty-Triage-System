@@ -54,3 +54,25 @@ def test_report_rejects_runs_from_the_wrong_split(runs, tmp_path):
     with pytest.raises(ValueError, match="row-level split"):
         build_report(config, run_dirs[(False, 0)], run_dirs[(False, 1)], [],
                      [run_dirs[(False, 1)]], tmp_path)
+
+
+def test_split_summary_compares_models_across_split_seeds(tmp_path):
+    from dataclasses import replace
+
+    from triage_training.splits import summarize_splits
+
+    config = write_config(tmp_path, synthetic_rows(per_label=15))
+    run_dirs = []
+    for split_seed in (1, 2):
+        seeded = replace(config, split=replace(config.split, seed=split_seed))
+        dataset = prepare_dataset(seeded)
+        save_dataset(dataset, config.paths.data_dir / dataset_name(seeded, False))
+        for seed in (0, 1):
+            run_dir = config.paths.runs_dir / f"split{split_seed}_{seed}"
+            run_baseline(dataset, config.baseline, seed, run_dir)
+            run_dirs.append(run_dir)
+    result = summarize_splits(config, run_dirs, tmp_path / "out")
+    assert {r["split_seed"] for r in result["runs"]} == {1, 2}
+    assert result["summary"]["baseline"]["splits"] == 4
+    assert "Variation Across Data Splits" in (tmp_path / "out" / "split_variation.md").read_text(
+        encoding="utf-8")

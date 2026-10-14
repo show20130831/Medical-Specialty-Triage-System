@@ -26,6 +26,8 @@ def main(argv: list[str] | None = None) -> None:
     commands = parser.add_subparsers(dest="command", required=True)
 
     prepare = commands.add_parser("prepare-data", help="clean, label, deduplicate, and split")
+    prepare.add_argument("--split-seed", type=int,
+                         help="override split.seed to measure variation across data splits")
     prepare.add_argument("--keep-duplicates", action="store_true",
                          help="split rows instead of unique descriptions (leakage study only)")
 
@@ -52,6 +54,11 @@ def main(argv: list[str] | None = None) -> None:
                         help="runs trained on the row-level split")
     report.add_argument("--out", type=Path, default=Path("reports"))
 
+    splits = commands.add_parser("summarize-splits",
+                                 help="compare runs trained on different data splits")
+    splits.add_argument("--run", type=Path, action="append", required=True)
+    splits.add_argument("--out", type=Path, default=Path("reports"))
+
     gate = commands.add_parser("validate-model", help="release gate for a model bundle")
     gate.add_argument("--model-dir", type=Path, required=True)
     gate.add_argument("--evaluation", type=Path, default=Path("reports/model_evaluation.json"))
@@ -70,6 +77,8 @@ def main(argv: list[str] | None = None) -> None:
     try:
         config = load_config(args.config)
         if args.command == "prepare-data":
+            if args.split_seed is not None:
+                config = replace(config, split=replace(config.split, seed=args.split_seed))
             prepared = prepare_dataset(config, keep_duplicates=args.keep_duplicates)
             out_dir = config.paths.data_dir / dataset_name(config, args.keep_duplicates)
             save_dataset(prepared, out_dir)
@@ -85,6 +94,12 @@ def main(argv: list[str] | None = None) -> None:
             logger.info("Release decision: %s (report in %s)", result["decision"], args.out)
             if result["decision"] != "PASS":
                 sys.exit(1)
+            return
+
+        if args.command == "summarize-splits":
+            from triage_training.splits import summarize_splits
+            summarize_splits(config, args.run, args.out)
+            logger.info("Wrote split variation report to %s", args.out)
             return
 
         if args.command == "monitor-drift":
