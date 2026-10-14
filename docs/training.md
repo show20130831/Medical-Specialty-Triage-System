@@ -26,6 +26,7 @@ mtsamples.csv
 | `python -m triage_training finetune --smoke` | Tiny pipeline check that finishes on CPU |
 | `python -m triage_training evaluate-model` | Scores an existing model bundle on a prepared split, e.g. to check CPU parity |
 | `python -m triage_training report` | `reports/model_evaluation.md` statistical evaluation |
+| `python -m triage_training summarize-splits` | `reports/split_variation.md` variation across data split seeds |
 | `python -m triage_training validate-model` | `reports/release_validation.md` release gate decision |
 | `python -m triage_training monitor-drift` | Drift check of a `/metrics` snapshot against the reference |
 

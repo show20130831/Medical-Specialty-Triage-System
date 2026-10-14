@@ -185,9 +185,10 @@ build labels.
 Full report: `reports/model_evaluation.md`. Test split of 398 descriptions never seen in
 training; 95% percentile bootstrap intervals with 2,000 resamples.
 
-**Scope of these results.** All numbers are an internal test: the same source, the same
-labeling rules, and one fixed split. The three seeds measure training randomness, not
-how results vary with different data. No external validation (another source,
+**Scope of these results.** All numbers are an internal test: the same source and the
+same labeling rules. Three training seeds measure optimiser randomness; six data splits
+measure dependence on which descriptions land in the test set. Neither shows how the
+model performs on other data. No external validation (another source,
 clinician-curated cases, or lay-language text) has been done.
 
 | Model | Test accuracy | Test macro F1 | Weighted F1 | Val macro F1 |
@@ -197,7 +198,13 @@ clinician-curated cases, or lay-language text) has been done.
 | PubMedBERT seed 1 | 0.892 [0.862, 0.920] | 0.895 [0.862, 0.924] | 0.892 | 0.874 |
 | PubMedBERT seed 2 | 0.889 [0.857, 0.920] | 0.892 [0.859, 0.921] | 0.888 | 0.870 |
 
-- **Seed variation:** macro F1 0.892 ± 0.003 (mean ± SD, 3 seeds).
+- **Seed variation:** macro F1 0.892 ± 0.003 (mean ± SD, 3 training seeds on one split).
+- **Split variation:** across six data splits (seeds 1–5 and 42), PubMedBERT macro F1 is
+  **0.876 ± 0.012** (0.858–0.889) and the baseline 0.761 ± 0.022; accuracy on directly
+  mapped rows is 0.839 ± 0.016 versus 0.700 ± 0.031. The served split (seed 42) is
+  PubMedBERT's best of the six, so 0.876 is the more representative estimate.
+  PubMedBERT beats the baseline on every split (mean +0.115, smallest +0.071)
+  (`reports/split_variation.md`).
 - **Versus baseline:** +0.148 macro F1 [+0.107, +0.192], one-sided paired bootstrap
   p < 0.001; exact McNemar test 69 vs. 13 discordant rows, p < 0.001.
 - **Per class (served model):** weakest are General Medicine (F1 0.795), Neurology
@@ -447,7 +454,7 @@ Not done: see §16 and §17.
 | No out-of-distribution detection | 90.5% of excluded-specialty inputs get a confident label | Measured and documented; no mitigation in product |
 | Training text is clinician-written summaries | Lay symptom descriptions may perform worse; not measured | Input assumption documented |
 | Ambiguous descriptions removed from test | Reported 0.89 does not cover inherently ambiguous cases | Abstention; leakage study shows 41% on conflicting cases |
-| Single fixed split; test set of 398; internal test only | Wide intervals (±0.03); no evidence of performance on other data | Bootstrap intervals, 3 training seeds, repeated data splits; external validation listed as not done |
+| Test set of 398; internal test only | Wide intervals (±0.03); the served split is the most favourable of six; no evidence of performance on other data | Bootstrap intervals, 3 training seeds, 6 data splits with the mean reported; external validation listed as not done |
 | Abstain threshold chosen on 318 validation rows | Threshold value is unstable; mid-confidence answers are often wrong | Stability and per-band analysis reported; gate checks test behaviour |
 | Row-level bootstrap assumes independent test rows | Intervals may be slightly narrow if templated descriptions cluster | Near-duplicate check (median similarity 0.39, 4.0% ≥ 0.8) suggests the effect is small |
 | Training may not have converged (best epoch = last) | Possible headroom left | Not explored |
@@ -483,7 +490,8 @@ A reviewer can:
 5. Run the service locally with a model bundle and get calibrated top-3 predictions.
 6. Inspect the API contract, tests, and CI results.
 
-The model meets the current bar when test macro F1 is at least 0.85, the 95% paired
+The model meets the current bar when test macro F1 is at least 0.85 (the lowest of six
+splits is 0.858), the 95% paired
 bootstrap interval for its macro F1 difference from the baseline lies above zero, every class has F1 of at least 0.75, and abstention
 keeps answered accuracy at or above 90%. The served model meets all three.
 
