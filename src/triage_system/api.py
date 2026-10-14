@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from triage_system.model_loader import ModelLoadError, load_local_model
 from triage_system.predictor import PredictionError, predict_description
@@ -41,6 +41,26 @@ def ready() -> dict[str, str]:
 class PredictRequest(BaseModel):
     description: str = Field(max_length=MAX_DESCRIPTION_CHARS)
 
+    @field_validator("description")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("description must contain non-blank text.")
+        return value
+
+
+class SpecialtyScore(BaseModel):
+    label: str
+    score: float
+
+
+class PredictResponse(BaseModel):
+    label: str = Field(description="Highest scoring specialty.")
+    score: float = Field(description="Temperature-calibrated confidence of the top label.")
+    uncertain: bool = Field(
+        description="True when the confidence is below the validated abstain threshold.")
+    top: list[SpecialtyScore] = Field(description="Three highest scoring specialties.")
+
 
 @lru_cache(maxsize=1)
 def _loaded_model():
@@ -50,13 +70,16 @@ def _loaded_model():
     return load_local_model(model_dir)
 
 
-@app.post("/predict")
-def predict(request: PredictRequest) -> dict[str, str | float]:
+@app.post("/predict", response_model=PredictResponse)
+def predict(request: PredictRequest) -> PredictResponse:
     """Classify one medical description with the local model."""
     try:
-        if not request.description.strip():
-            raise PredictionError("description must contain non-blank text.")
         result = predict_description(_loaded_model(), request.description)
-    except (ModelLoadError, PredictionError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from None
-    return {"label": result.label, "score": result.score}
+    except ModelLoadError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from None
+    except PredictionError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from None
+    return PredictResponse(
+        label=result.label, score=result.score, uncertain=result.uncertain,
+        top=[SpecialtyScore(label=label, score=score) for label, score in result.top],
+    )

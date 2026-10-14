@@ -11,7 +11,7 @@ def test_request_log_contains_metadata_but_not_description(caplog):
         with TestClient(app) as client:
             response = client.post("/predict", json={"description": description})
 
-    assert response.status_code == 400
+    assert response.status_code == 503
     messages = " ".join(record.getMessage() for record in caplog.records)
     assert "POST" in messages
     assert "/predict" in messages

@@ -24,6 +24,8 @@ class ModelAssets:
     directory: Path
     labels: tuple[str, ...]
     max_length: int = MAX_LENGTH
+    temperature: float = 1.0
+    uncertain_threshold: float | None = None
 
 
 def _read_object(path: Path) -> dict:
@@ -74,4 +76,24 @@ def validate_model_assets(model_dir: str | Path) -> ModelAssets:
             or any(type(label2id[label]) is not int or label2id[label] != i
                    for i, label in enumerate(labels))):
         raise ModelAssetError("label2id must be the exact inverse of id2label.")
-    return ModelAssets(directory=directory, labels=labels)
+    temperature, threshold = _read_calibration(directory / "calibration.json")
+    return ModelAssets(directory=directory, labels=labels,
+                       temperature=temperature, uncertain_threshold=threshold)
+
+
+def _is_number(value: object) -> bool:
+    return type(value) in (int, float)
+
+
+def _read_calibration(path: Path) -> tuple[float, float | None]:
+    """Optional temperature and abstain threshold produced by the evaluation report."""
+    if not path.is_file():
+        return 1.0, None
+    calibration = _read_object(path)
+    temperature = calibration.get("temperature")
+    threshold = calibration.get("uncertain_threshold")
+    if not _is_number(temperature) or not 0 < temperature <= 100:
+        raise ModelAssetError("calibration.json temperature must be a positive number.")
+    if threshold is not None and (not _is_number(threshold) or not 0 <= threshold < 1):
+        raise ModelAssetError("calibration.json uncertain_threshold must be in [0, 1).")
+    return float(temperature), None if threshold is None else float(threshold)

@@ -16,11 +16,14 @@ The public online deployment is not included yet. Model weights remain private a
 
 ## Features
 
-- Classifies description-only input into eight specialties.
+- Classifies description-only input into eight specialties and returns the top three.
+- Reports temperature-calibrated confidence and marks low-confidence inputs as
+  `uncertain` using a threshold chosen on validation data.
 - Serves a same-origin browser interface at `/`.
 - Exposes `/predict`, `/health`, and `/ready` endpoints.
 - Loads the local model once per API process in CPU evaluation mode.
-- Validates blank and oversized descriptions before inference.
+- Rejects blank and oversized descriptions with `422`; returns `503` when the model is
+  unavailable.
 - Logs request metadata without logging medical text.
 - Provides Docker and Docker Compose configuration.
 
@@ -67,7 +70,7 @@ Open http://127.0.0.1:8000/ in a browser.
 ## API Example
 
 ```powershell
-$body = @{ description = "persistent headache and visual changes" } | ConvertTo-Json
+$body = @{ description = "Persistent knee pain and stiffness when walking." } | ConvertTo-Json
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/predict `
   -ContentType "application/json" -Body $body
 ```
@@ -76,12 +79,28 @@ Example response:
 
 ```json
 {
-  "label": "Neurology",
-  "score": 0.9051
+  "label": "Orthopedics",
+  "score": 0.9825,
+  "uncertain": false,
+  "top": [
+    {"label": "Orthopedics", "score": 0.9825},
+    {"label": "Neurology", "score": 0.0043},
+    {"label": "General Medicine", "score": 0.0029}
+  ]
 }
 ```
 
-The score is a model output, not a calibrated probability. Blank descriptions return `400`; descriptions over 10,000 characters return `422`.
+Scores are softmax outputs after temperature scaling fitted on validation data
+(`calibration.json` in the model bundle). When the top score falls below the
+validated threshold, `uncertain` is `true` and the browser asks for manual review; on
+the test split this withholds 7.5% of inputs and raises accuracy on the rest from
+88.4% to 91.6%.
+
+| Condition | Status |
+| --- | --- |
+| Prediction returned | `200` |
+| Blank or over 10,000 characters | `422` |
+| Model not configured or failed to load | `503` |
 
 ## Docker
 
@@ -153,6 +172,9 @@ The test suite covers API behavior, input validation, model asset validation, of
 - Educational prototype, not a clinically validated system.
 - English description input only.
 - Specialty classification is not diagnosis, urgency assessment, or treatment advice.
+- Calibration and the `uncertain` flag hold for descriptions like the training data.
+  Vague or out-of-scope text (for example "Follow-up visit.") can still receive a
+  confident label; the model has no out-of-distribution detection.
 - CPU inference is intended for demonstration and small-volume testing.
 - Public deployment, authentication, rate limiting, and capacity testing are not implemented.
 

@@ -1,8 +1,11 @@
 """Run one description through the validated local classifier."""
 
+import math
 from dataclasses import dataclass
 
-from triage_system.model_loader import LoadedModel, load_local_model
+from triage_system.model_loader import LoadedModel
+
+TOP_K = 3
 
 
 class PredictionError(ValueError):
@@ -13,6 +16,25 @@ class PredictionError(ValueError):
 class Prediction:
     label: str
     score: float
+    uncertain: bool = False
+    top: tuple[tuple[str, float], ...] = ()
+
+
+def rank_specialties(
+    logits: list[float], labels: tuple[str, ...], temperature: float = 1.0,
+    uncertain_threshold: float | None = None, top_k: int = TOP_K,
+) -> Prediction:
+    """Temperature-scaled softmax, top-k ranking, and abstention below the threshold."""
+    if len(logits) != len(labels):
+        raise PredictionError("Model returned a label outside the validated mapping.")
+    scaled = [value / temperature for value in logits]
+    peak = max(scaled)
+    weights = [math.exp(value - peak) for value in scaled]
+    total = sum(weights)
+    ranked = sorted(zip(labels, (w / total for w in weights)), key=lambda item: -item[1])
+    label, score = ranked[0]
+    uncertain = uncertain_threshold is not None and score < uncertain_threshold
+    return Prediction(label=label, score=score, uncertain=uncertain, top=tuple(ranked[:top_k]))
 
 
 def predict_description(loaded: LoadedModel, description: str) -> Prediction:
@@ -31,9 +53,6 @@ def predict_description(loaded: LoadedModel, description: str) -> Prediction:
     )
     encoded = {key: value.to("cpu") for key, value in encoded.items()}
     with torch.inference_mode():
-        logits = loaded.model(**encoded).logits
-        probabilities = torch.softmax(logits, dim=-1)[0]
-    index = int(torch.argmax(probabilities).item())
-    if index >= len(loaded.assets.labels):
-        raise PredictionError("Model returned a label outside the validated mapping.")
-    return Prediction(label=loaded.assets.labels[index], score=float(probabilities[index]))
+        logits = loaded.model(**encoded).logits[0].float().tolist()
+    return rank_specialties(logits, loaded.assets.labels, loaded.assets.temperature,
+                            loaded.assets.uncertain_threshold)
