@@ -16,6 +16,7 @@ from triage_training.artifacts import utc_timestamp, write_json
 from triage_training.config import TrainingConfig
 from triage_training.data import PreparedDataset, description_key, load_dataset
 from triage_training.evaluation import classification_metrics
+from triage_training.taxonomy import Taxonomy, load_taxonomy
 from triage_training.stats import (
     accuracy, bootstrap_ci, calibrate, choose_threshold, expected_calibration_error,
     fit_temperature, macro_f1, mcnemar_exact, negative_log_likelihood,
@@ -153,6 +154,31 @@ def _label_source(runs: list[RunScores], dataset: PreparedDataset) -> dict:
     return out
 
 
+def _keyword_label_overlap(run: RunScores, dataset: PreparedDataset,
+                           taxonomy: Taxonomy) -> dict:
+    """How often a keyword-rule label is visible in the model input itself."""
+    test = dataset.splits["test"].set_index("source_row").loc[run.splits["test"]["source_row"]]
+    correct = run.predictions() == run.splits["test"]["y_true"]
+    keyword = (test["label_source"] == "keyword").to_numpy()
+
+    def contains(min_weight: int) -> np.ndarray:
+        return np.array([
+            any(term in text.lower() for term, weight in taxonomy.keyword_weights[label].items()
+                if weight >= min_weight)
+            for text, label in zip(test["description"], test["label"])
+        ])
+
+    any_term, specific = contains(1) & keyword, contains(2) & keyword
+    return {
+        "model": run.display_name,
+        "keyword_rows": int(keyword.sum()),
+        "share_with_own_label_term": float(any_term.sum() / keyword.sum()) if keyword.any()
+        else None,
+        "accuracy_with_specific_term": _accuracy_by(specific, correct),
+        "accuracy_without_specific_term": _accuracy_by(keyword & ~specific, correct),
+    }
+
+
 def _near_duplicates(runs: list[RunScores], dataset: PreparedDataset) -> dict:
     """Exact deduplication misses paraphrases; measure how close test rows are to train."""
     train, test = dataset.splits["train"], dataset.splits["test"].set_index("source_row")
@@ -174,7 +200,7 @@ def _near_duplicates(runs: list[RunScores], dataset: PreparedDataset) -> dict:
 
 
 def _leakage(run: RunScores, config: TrainingConfig) -> dict:
-    """Split legacy test accuracy into rows whose description was also in train."""
+    """Split row-level test accuracy into rows whose description was also in train."""
     split_seed = run.manifest["dataset"]["split_seed"]
     dataset = load_dataset(config.paths.data_dir / f"rowlevel_seed{split_seed}")
     keys = {name: part["description"].map(description_key)
@@ -211,7 +237,7 @@ def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
     if not all(run.deduplicated for run in main_runs):
         raise ValueError("--model, --baseline, and --seed-run must use the deduplicated split.")
     if any(run.deduplicated for run in rowlevel):
-        raise ValueError("--rowlevel runs must use the legacy row-level split.")
+        raise ValueError("--rowlevel runs must use the row-level split.")
     _require_same_test_rows(main_runs)
 
     split_seed = primary.manifest["dataset"]["split_seed"]
@@ -235,6 +261,8 @@ def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
         "errors": _errors(primary, labels),
         "calibration": calibration,
         "label_source": _label_source([primary, baseline], dataset),
+        "keyword_label_overlap": _keyword_label_overlap(
+            primary, dataset, load_taxonomy(config.data.taxonomy)),
         "near_duplicates": _near_duplicates([primary, baseline], dataset),
         "leakage": [_leakage(run, config) for run in rowlevel],
     }
@@ -332,6 +360,15 @@ def render_markdown(report: dict) -> str:
     for name, row in report["label_source"].items():
         lines.append(f"| {name} | {_pct(row['direct']['accuracy'])} (n={row['direct']['n']}) | "
                      f"{_pct(row['keyword']['accuracy'])} (n={row['keyword']['n']}) |")
+    ko = report["keyword_label_overlap"]
+    with_term, without = ko["accuracy_with_specific_term"], ko["accuracy_without_specific_term"]
+    lines += ["", f"For {_pct(ko['share_with_own_label_term'])} of the {ko['keyword_rows']} "
+                  "keyword-rule test rows, the description itself contains a keyword of its "
+                  f"assigned label. {ko['model']} scores {_pct(with_term['accuracy'])} "
+                  f"(n={with_term['n']}) on rows containing a specific (weight 2) keyword and "
+                  f"{_pct(without['accuracy'])} (n={without['n']}) on the rest. Part of the "
+                  "headline score therefore reflects the labeling rules; accuracy on directly "
+                  "mapped rows is the more conservative estimate."]
 
     nd = report["near_duplicates"]
     lines += ["", "### Near duplicates", "",
@@ -371,10 +408,10 @@ def render_markdown(report: dict) -> str:
     if report["leakage"]:
         lines += [
             "",
-            "## Leakage study: legacy row-level split",
+            "## Leakage study: row-level split",
             "",
-            "The original split assigned rows, not descriptions, so identical descriptions "
-            "appeared in both train and test. Test rows are grouped by whether their "
+            "Splitting rows instead of unique descriptions puts identical descriptions "
+            "in both train and test. Test rows are grouped by whether their "
             "description also occurs in train, and whether the description carries "
             "conflicting labels anywhere in the data. \"Seen, consistent\" isolates "
             "memorisation; \"conflicting\" rows have no single correct answer.",

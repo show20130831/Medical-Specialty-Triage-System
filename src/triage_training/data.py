@@ -143,7 +143,7 @@ def validate_splits(
 
 
 def prepare_dataset(config: TrainingConfig, keep_duplicates: bool = False) -> PreparedDataset:
-    """Run the full data pipeline. keep_duplicates reproduces the legacy row-level split."""
+    """Run the full data pipeline. keep_duplicates builds the row-level split for the leakage study."""
     taxonomy = load_taxonomy(config.data.taxonomy)
     df, audit = clean_and_label(load_raw(config.data.raw_csv, config.data.encoding), taxonomy)
     if not keep_duplicates:

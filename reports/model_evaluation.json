@@ -1,5 +1,5 @@
 {
-  "created_utc": "20261013T171004Z",
+  "created_utc": "20261014T083711Z",
   "dataset": {
     "audit": {
       "raw_rows": 4999,
@@ -289,6 +289,19 @@
       }
     }
   },
+  "keyword_label_overlap": {
+    "model": "PubMedBERT (seed 42)",
+    "keyword_rows": 156,
+    "share_with_own_label_term": 0.8717948717948718,
+    "accuracy_with_specific_term": {
+      "n": 90,
+      "accuracy": 0.9777777777777777
+    },
+    "accuracy_without_specific_term": {
+      "n": 66,
+      "accuracy": 0.8636363636363636
+    }
+  },
   "near_duplicates": {
     "similarity": "character 3-5 gram TF-IDF cosine to the nearest train description",
     "median_nearest_similarity": 0.3878371301504212,
@@ -370,31 +383,6 @@
         "accuracy": 0.4126984126984127
       },
       "macro_f1": 0.7956501584829225
-    },
-    {
-      "name": "PubMedBERT (legacy export)",
-      "run": "legacy_rowlevel_seed42_20261013T151605Z",
-      "all": {
-        "n": 738,
-        "accuracy": 0.7953929539295393
-      },
-      "seen_in_train": {
-        "n": 378,
-        "accuracy": 0.7724867724867724
-      },
-      "seen_consistent_label": {
-        "n": 243,
-        "accuracy": 0.9917695473251029
-      },
-      "unseen": {
-        "n": 360,
-        "accuracy": 0.8194444444444444
-      },
-      "conflicting_label": {
-        "n": 189,
-        "accuracy": 0.4074074074074074
-      },
-      "macro_f1": 0.7980766292861082
     }
   ]
 }

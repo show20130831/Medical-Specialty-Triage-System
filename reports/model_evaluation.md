@@ -54,6 +54,8 @@ Rows from catch-all specialties (Surgery, Radiology, SOAP notes, discharge summa
 | PubMedBERT (seed 42) | 85.5% (n=242) | 92.9% (n=156) |
 | TF-IDF + logistic regression | 67.8% (n=242) | 84.6% (n=156) |
 
+For 87.2% of the 156 keyword-rule test rows, the description itself contains a keyword of its assigned label. PubMedBERT (seed 42) scores 97.8% (n=90) on rows containing a specific (weight 2) keyword and 86.4% (n=66) on the rest. Part of the headline score therefore reflects the labeling rules; accuracy on directly mapped rows is the more conservative estimate.
+
 ### Near duplicates
 
 Deduplication removes exact copies after normalising case, punctuation, and whitespace. Measured by character 3-5 gram TF-IDF cosine to the nearest train description, the median test row scores 0.39; 1.3% score ≥ 0.9, 4.0% score ≥ 0.8, 7.5% score ≥ 0.7.
@@ -80,12 +82,11 @@ Temperature scaling fitted on validation NLL gives T = 0.95. Test ECE 0.062 → 
 
 The serving threshold is chosen on validation as the lowest confidence reaching 90.0% accuracy: 0.65. On test it answers 92.5% of inputs with 91.6% accuracy; the rest are returned as uncertain.
 
-## Leakage study: legacy row-level split
+## Leakage study: row-level split
 
-The original split assigned rows, not descriptions, so identical descriptions appeared in both train and test. Test rows are grouped by whether their description also occurs in train, and whether the description carries conflicting labels anywhere in the data. "Seen, consistent" isolates memorisation; "conflicting" rows have no single correct answer.
+Splitting rows instead of unique descriptions puts identical descriptions in both train and test. Test rows are grouped by whether their description also occurs in train, and whether the description carries conflicting labels anywhere in the data. "Seen, consistent" isolates memorisation; "conflicting" rows have no single correct answer.
 
 | Model | All test | Seen in train | Seen, consistent label | Unseen | Conflicting label | Macro F1 |
 | --- | --- | --- | --- | --- | --- | --- |
 | TF-IDF + logistic regression | 70.6% (n=738) | 73.8% (n=378) | 99.2% (n=243) | 67.2% (n=360) | 32.3% (n=189) | 0.717 |
 | PubMedBERT (seed 42) | 79.3% (n=738) | 77.2% (n=378) | 98.8% (n=243) | 81.4% (n=360) | 41.3% (n=189) | 0.796 |
-| PubMedBERT (legacy export) | 79.5% (n=738) | 77.2% (n=378) | 99.2% (n=243) | 81.9% (n=360) | 40.7% (n=189) | 0.798 |

@@ -24,7 +24,7 @@ mtsamples.csv
 | `python -m triage_training baseline` | `outputs/runs/baseline_*/` metrics and per-row probabilities |
 | `python -m triage_training finetune` | `outputs/runs/pubmedbert_*/model/` serving bundle |
 | `python -m triage_training finetune --smoke` | Tiny pipeline check that finishes on CPU |
-| `python -m triage_training evaluate-model` | Scores an existing export, e.g. the original Colab model |
+| `python -m triage_training evaluate-model` | Scores an existing model bundle on a prepared split, e.g. to check CPU parity |
 | `python -m triage_training report` | `reports/model_evaluation.md` statistical evaluation |
 
 All hyperparameters live in [configs/train.yaml](../configs/train.yaml). The loader
@@ -43,8 +43,8 @@ appears more than once, sometimes with different labels.
 - The result is 1,986 unique descriptions split 1,270 / 318 / 398 with no shared
   description between splits.
 
-The original row-level split (2,359 / 590 / 738) shared 365 normalised descriptions
-between train and test. It can be rebuilt for comparison with
+Splitting rows instead of unique descriptions (2,359 / 590 / 738) shares 365 normalised
+descriptions between train and test. That row-level split can be built for comparison with
 `prepare-data --keep-duplicates`, which writes `outputs/data/rowlevel_seed42/`.
 
 `outputs/` contains medical text and model weights and is excluded from Git and Docker.
@@ -115,7 +115,7 @@ commit:
   (direct specialty mapping vs. keyword rules)
 - Temperature scaling fitted on validation, ECE and NLL before and after, and the
   confidence threshold below which the API should answer "uncertain"
-- Leakage study on the legacy row-level split: accuracy on test rows seen in train,
+- Leakage study on the row-level split: accuracy on test rows seen in train,
   unseen, and with conflicting labels
 
 ```bash

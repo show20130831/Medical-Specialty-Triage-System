@@ -20,8 +20,9 @@ Browser -> FastAPI -> PubMedBERT (CPU) -> top-3 specialties + calibrated confide
 ```
 
 The trained weights are kept in a private Hugging Face repository because the MTSamples
-training data does not state a license, so no public online demo is hosted. Anyone can
-reproduce the model from the public Kaggle dataset with the training pipeline in a few
+training data does not state a license, so neither the data nor the weights are
+redistributed and no public online demo is hosted. Given access to the dataset and
+compliance with its source's terms, the training pipeline reproduces the model in a few
 minutes on one GPU; see [docs/training.md](docs/training.md).
 
 | Confident prediction | Uncertain prediction |
@@ -158,11 +159,17 @@ bootstrap intervals; full analysis in [reports/model_evaluation.md](reports/mode
 
 - PubMedBERT beats the baseline by +0.148 macro F1 [+0.107, +0.192]; exact McNemar
   p < 0.001.
-- The original row-level split put 365 identical descriptions in both train and test.
-  On it, test rows seen in training scored 99% (memorised) and rows with conflicting
-  labels 41%, so its 0.80 macro F1 mixed both effects. Unseen rows scored 81%.
-- Rows labeled by keyword rules are easier (93%) than directly mapped rows (86%),
-  because their labels derive from terms that also appear in the text.
+- Splitting rows instead of unique descriptions put 365 identical descriptions in both
+  train and test. On that split, test rows seen in training scored 99% (memorised) and
+  rows with conflicting labels 41%, so its 0.80 macro F1 mixed both effects. This is why
+  the pipeline deduplicates before splitting.
+- Rows labeled by keyword rules score 93%, directly mapped rows 86%: for 87% of
+  keyword-rule rows the description contains a keyword of its own label, so part of the
+  headline score reflects the labeling rules. **86% on directly mapped rows is the more
+  conservative estimate.**
+- These are internal results (same source, same labeling rules, one split). No external
+  validation has been done, and `uncertain` does not detect out-of-scope input: 90% of
+  descriptions from excluded specialties still received a confident label.
 
 ## Testing
 
