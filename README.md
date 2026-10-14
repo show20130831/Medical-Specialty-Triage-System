@@ -145,6 +145,25 @@ python -m triage_training baseline
 python -m triage_training finetune
 ```
 
+### Results
+
+Test split of 398 unique descriptions that never appear in training. Intervals are 95%
+bootstrap intervals; full analysis in [reports/model_evaluation.md](reports/model_evaluation.md).
+
+| Model | Test accuracy | Test macro F1 |
+| --- | --- | --- |
+| TF-IDF + logistic regression | 0.744 [0.701, 0.786] | 0.742 [0.691, 0.785] |
+| PubMedBERT (seed 42, served) | 0.884 [0.854, 0.915] | 0.889 [0.857, 0.919] |
+| PubMedBERT, 3 seeds | | 0.892 ± 0.003 (mean ± SD) |
+
+- PubMedBERT beats the baseline by +0.148 macro F1 [+0.107, +0.192]; exact McNemar
+  p < 0.001.
+- The original row-level split put 365 identical descriptions in both train and test.
+  On it, test rows seen in training scored 99% (memorised) and rows with conflicting
+  labels 41%, so its 0.80 macro F1 mixed both effects. Unseen rows scored 81%.
+- Rows labeled by keyword rules are easier (93%) than directly mapped rows (86%),
+  because their labels derive from terms that also appear in the text.
+
 ## Testing
 
 ```powershell
