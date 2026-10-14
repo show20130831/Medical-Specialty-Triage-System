@@ -1,18 +1,32 @@
 ﻿# Medical Specialty Triage System
 
-An educational NLP application that classifies an English medical description into one of eight medical specialties.
+An educational NLP application that suggests which of eight medical specialties an
+English clinical description belongs to, with calibrated confidence and an "uncertain"
+answer when the model should defer to a person.
 
-The project demonstrates an end-to-end ML application workflow: a fine-tuned PubMedBERT model, a FastAPI service, a browser interface, CPU inference, Docker packaging, automated tests, and GitHub-based development practices.
+The project covers the full ML workflow: a reproducible data and training pipeline with
+leakage-free splits, a statistically evaluated PubMedBERT model, a FastAPI service with a
+browser interface, Docker packaging, automated tests, and CI.
+
+![Demo: two confident predictions, then an ambiguous description marked uncertain](docs/images/demo.gif)
 
 ## Current Status
 
-The local MVP is complete and runs with the private fine-tuned PubMedBERT export.
+The application runs locally with the fine-tuned model on CPU.
 
 ```text
-Browser -> FastAPI -> PubMedBERT -> CPU inference -> Specialty + score
+Browser -> FastAPI -> PubMedBERT (CPU) -> top-3 specialties + calibrated confidence
+                                        -> "uncertain" below the validated threshold
 ```
 
-The public online deployment is not included yet. Model weights remain private and are excluded from Git.
+The trained weights are kept in a private Hugging Face repository because the MTSamples
+training data does not state a license, so no public online demo is hosted. Anyone can
+reproduce the model from the public Kaggle dataset with the training pipeline in a few
+minutes on one GPU; see [docs/training.md](docs/training.md).
+
+| Confident prediction | Uncertain prediction |
+| --- | --- |
+| ![Orthopedics at 98% confidence](docs/images/prediction-confident.png) | ![Ambiguous chest and back pain marked uncertain](docs/images/prediction-uncertain.png) |
 
 ## Features
 
@@ -54,7 +68,9 @@ Install CPU inference dependencies:
 .\.venv\Scripts\python.exe -m pip install -e ".[inference]"
 ```
 
-Place the private model export at `models/pubmedbert_description/`.
+Place a model bundle at `models/pubmedbert_description/`: either train one with
+[docs/training.md](docs/training.md) or, with access to the private Hugging Face repository,
+run `hf download show20130831/medical-specialty-pubmedbert --local-dir models/pubmedbert_description`.
 
 Set the model path and start the API:
 
