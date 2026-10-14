@@ -1,0 +1,18 @@
+# Drift and health thresholds for `python -m triage_training monitor-drift`.
+# Inputs are aggregate /metrics snapshots compared with the bundle's
+# monitoring_reference.json. Without ground-truth labels these checks signal that
+# inputs or outputs changed; they cannot show that accuracy dropped.
+
+min_predictions: 100          # below this the window is reported as insufficient data
+
+psi:                          # population stability index; 0.10 / 0.25 are common conventions
+  warn: 0.10
+  alert: 0.25
+
+uncertain_rate:               # reference test rate is 7.5%
+  warn: 0.15
+  alert: 0.25
+
+server_error_rate:            # share of /predict responses with 5xx status
+  warn: 0.01
+  alert: 0.05

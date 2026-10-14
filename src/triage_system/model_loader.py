@@ -1,6 +1,7 @@
 """Load a validated local model on CPU, independently of the HTTP service."""
 
 import argparse
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,15 @@ class LoadedModel:
     assets: ModelAssets
     tokenizer: Any
     model: Any
+    weights_sha256: str | None = None
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _get_auto_classes():
@@ -57,7 +67,9 @@ def load_local_model(model_dir: str | Path) -> LoadedModel:
         raise ModelLoadError("Loaded model label mappings differ from the validated export.")
     if model.training or any(p.device.type != "cpu" for p in model.parameters()):
         raise ModelLoadError("Loaded model must be on CPU and in evaluation mode.")
-    return LoadedModel(assets=assets, tokenizer=tokenizer, model=model)
+    # Hashing once at load time identifies the exact weights behind /version and /metrics.
+    return LoadedModel(assets=assets, tokenizer=tokenizer, model=model,
+                       weights_sha256=_sha256(assets.directory / "model.safetensors"))
 
 
 def main() -> None:

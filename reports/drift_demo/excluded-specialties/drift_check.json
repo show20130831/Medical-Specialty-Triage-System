@@ -1,0 +1,45 @@
+{
+  "created_utc": "20261014T084729Z",
+  "window_started_utc": "2026-10-14T08:46:01+00:00",
+  "model_weights_sha256": "a2f4ad5c6d97bdd224e3703b00e70ea2686e5e3cbc0dcc48567cc21fa6b39bc2",
+  "predictions": 400,
+  "checks": [
+    {
+      "check": "Predicted label distribution",
+      "metric": "PSI",
+      "value": 0.1968455877242113,
+      "reference": 0.0,
+      "status": "WARN"
+    },
+    {
+      "check": "Confidence distribution",
+      "metric": "PSI",
+      "value": 0.10139462308006908,
+      "reference": 0.0,
+      "status": "WARN"
+    },
+    {
+      "check": "Input length distribution",
+      "metric": "PSI",
+      "value": 0.023582432596977353,
+      "reference": 0.0,
+      "status": "OK"
+    },
+    {
+      "check": "Uncertain rate",
+      "metric": "rate",
+      "value": 0.12,
+      "reference": 0.07537688442211055,
+      "status": "OK"
+    },
+    {
+      "check": "Server error rate",
+      "metric": "rate",
+      "value": 0.0,
+      "reference": 0.0,
+      "status": "OK"
+    }
+  ],
+  "label_chi_square_p_value": 3.389037973817296e-14,
+  "status": "WARN"
+}

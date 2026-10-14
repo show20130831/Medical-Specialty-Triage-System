@@ -1,3 +1,4 @@
+import hashlib
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from triage_system.model_assets import SPECIALTIES, ModelAssets
 @pytest.fixture
 def backend(tmp_path, monkeypatch):
     assets = ModelAssets(tmp_path, tuple(sorted(SPECIALTIES)))
+    (tmp_path / "model.safetensors").write_bytes(b"placeholder weights")
     model = Mock()
     model.config = SimpleNamespace(
         id2label=dict(enumerate(assets.labels)),
@@ -43,6 +45,7 @@ def test_offline_cpu_loading_contract(backend):
     model.eval.assert_called_once_with()
     assert result.assets.max_length == 512
     assert result.model is model
+    assert result.weights_sha256 == hashlib.sha256(b"placeholder weights").hexdigest()
 
 
 def test_loading_failure_is_actionable(backend):

@@ -12,10 +12,14 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from triage_system.monitoring import (
+    LENGTH_EDGES, SCORE_EDGES, bucket_index, bucket_labels,
+)
 from triage_training.artifacts import utc_timestamp, write_json
 from triage_training.config import TrainingConfig
 from triage_training.data import PreparedDataset, description_key, load_dataset
 from triage_training.evaluation import classification_metrics
+from triage_training.taxonomy import Taxonomy, load_taxonomy
 from triage_training.stats import (
     accuracy, bootstrap_ci, calibrate, choose_threshold, expected_calibration_error,
     fit_temperature, macro_f1, mcnemar_exact, negative_log_likelihood,
@@ -135,6 +139,30 @@ def _calibration(run: RunScores) -> dict:
     }
 
 
+def _monitoring_reference(run: RunScores, dataset: PreparedDataset, temperature: float,
+                          threshold: float) -> dict:
+    """Expected production distributions, in the same buckets as the /metrics snapshot."""
+    test = dataset.splits["test"].set_index("source_row").loc[run.splits["test"]["source_row"]]
+    probabilities = calibrate(run.splits["test"]["logits"], temperature)
+    top = probabilities.max(axis=1)
+    labels = [dataset.labels[i] for i in probabilities.argmax(axis=1)]
+
+    def histogram(values, edges):
+        counts = [0] * (len(edges) + 1)
+        for value in values:
+            counts[bucket_index(value, edges)] += 1
+        return dict(zip(bucket_labels(edges), counts))
+
+    return {
+        "source": "calibrated predictions on the deduplicated test split",
+        "predictions": int(len(top)),
+        "uncertain": int((top < threshold).sum()),
+        "label_counts": {label: labels.count(label) for label in dataset.labels},
+        "score_histogram": histogram(top, SCORE_EDGES),
+        "length_histogram": histogram(test["description"].str.len(), LENGTH_EDGES),
+    }
+
+
 def _accuracy_by(mask: np.ndarray, correct: np.ndarray) -> dict:
     return {"n": int(mask.sum()),
             "accuracy": float(correct[mask].mean()) if mask.any() else None}
@@ -151,6 +179,31 @@ def _label_source(runs: list[RunScores], dataset: PreparedDataset) -> dict:
         out[run.display_name] = {kind: _accuracy_by(source == kind, correct)
                                  for kind in ("direct", "keyword")}
     return out
+
+
+def _keyword_label_overlap(run: RunScores, dataset: PreparedDataset,
+                           taxonomy: Taxonomy) -> dict:
+    """How often a keyword-rule label is visible in the model input itself."""
+    test = dataset.splits["test"].set_index("source_row").loc[run.splits["test"]["source_row"]]
+    correct = run.predictions() == run.splits["test"]["y_true"]
+    keyword = (test["label_source"] == "keyword").to_numpy()
+
+    def contains(min_weight: int) -> np.ndarray:
+        return np.array([
+            any(term in text.lower() for term, weight in taxonomy.keyword_weights[label].items()
+                if weight >= min_weight)
+            for text, label in zip(test["description"], test["label"])
+        ])
+
+    any_term, specific = contains(1) & keyword, contains(2) & keyword
+    return {
+        "model": run.display_name,
+        "keyword_rows": int(keyword.sum()),
+        "share_with_own_label_term": float(any_term.sum() / keyword.sum()) if keyword.any()
+        else None,
+        "accuracy_with_specific_term": _accuracy_by(specific, correct),
+        "accuracy_without_specific_term": _accuracy_by(keyword & ~specific, correct),
+    }
 
 
 def _near_duplicates(runs: list[RunScores], dataset: PreparedDataset) -> dict:
@@ -174,7 +227,7 @@ def _near_duplicates(runs: list[RunScores], dataset: PreparedDataset) -> dict:
 
 
 def _leakage(run: RunScores, config: TrainingConfig) -> dict:
-    """Split legacy test accuracy into rows whose description was also in train."""
+    """Split row-level test accuracy into rows whose description was also in train."""
     split_seed = run.manifest["dataset"]["split_seed"]
     dataset = load_dataset(config.paths.data_dir / f"rowlevel_seed{split_seed}")
     keys = {name: part["description"].map(description_key)
@@ -211,7 +264,7 @@ def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
     if not all(run.deduplicated for run in main_runs):
         raise ValueError("--model, --baseline, and --seed-run must use the deduplicated split.")
     if any(run.deduplicated for run in rowlevel):
-        raise ValueError("--rowlevel runs must use the legacy row-level split.")
+        raise ValueError("--rowlevel runs must use the row-level split.")
     _require_same_test_rows(main_runs)
 
     split_seed = primary.manifest["dataset"]["split_seed"]
@@ -234,7 +287,12 @@ def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
         "comparison": _comparison(primary, baseline),
         "errors": _errors(primary, labels),
         "calibration": calibration,
+        "model_run": {"run": primary.run_dir.name,
+                      "created_utc": primary.manifest.get("created_utc"),
+                      "git_commit": primary.manifest.get("git", {}).get("commit")},
         "label_source": _label_source([primary, baseline], dataset),
+        "keyword_label_overlap": _keyword_label_overlap(
+            primary, dataset, load_taxonomy(config.data.taxonomy)),
         "near_duplicates": _near_duplicates([primary, baseline], dataset),
         "leakage": [_leakage(run, config) for run in rowlevel],
     }
@@ -250,6 +308,10 @@ def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
             "uncertain_threshold": calibration["uncertain_threshold"]["threshold"],
             "target_answered_accuracy": TARGET_ANSWERED_ACCURACY,
         })
+        # Baseline for drift checks against the service's /metrics snapshots.
+        write_json(export_dir / "monitoring_reference.json", _monitoring_reference(
+            primary, dataset, calibration["temperature"],
+            calibration["uncertain_threshold"]["threshold"]))
     return report
 
 
@@ -332,6 +394,15 @@ def render_markdown(report: dict) -> str:
     for name, row in report["label_source"].items():
         lines.append(f"| {name} | {_pct(row['direct']['accuracy'])} (n={row['direct']['n']}) | "
                      f"{_pct(row['keyword']['accuracy'])} (n={row['keyword']['n']}) |")
+    ko = report["keyword_label_overlap"]
+    with_term, without = ko["accuracy_with_specific_term"], ko["accuracy_without_specific_term"]
+    lines += ["", f"For {_pct(ko['share_with_own_label_term'])} of the {ko['keyword_rows']} "
+                  "keyword-rule test rows, the description itself contains a keyword of its "
+                  f"assigned label. {ko['model']} scores {_pct(with_term['accuracy'])} "
+                  f"(n={with_term['n']}) on rows containing a specific (weight 2) keyword and "
+                  f"{_pct(without['accuracy'])} (n={without['n']}) on the rest. Part of the "
+                  "headline score therefore reflects the labeling rules; accuracy on directly "
+                  "mapped rows is the more conservative estimate."]
 
     nd = report["near_duplicates"]
     lines += ["", "### Near duplicates", "",
@@ -371,10 +442,10 @@ def render_markdown(report: dict) -> str:
     if report["leakage"]:
         lines += [
             "",
-            "## Leakage study: legacy row-level split",
+            "## Leakage study: row-level split",
             "",
-            "The original split assigned rows, not descriptions, so identical descriptions "
-            "appeared in both train and test. Test rows are grouped by whether their "
+            "Splitting rows instead of unique descriptions puts identical descriptions "
+            "in both train and test. Test rows are grouped by whether their "
             "description also occurs in train, and whether the description carries "
             "conflicting labels anywhere in the data. \"Seen, consistent\" isolates "
             "memorisation; \"conflicting\" rows have no single correct answer.",

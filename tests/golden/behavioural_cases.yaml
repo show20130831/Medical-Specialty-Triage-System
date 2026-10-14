@@ -1,0 +1,60 @@
+# Synthetic behavioural test cases for the release gate. All text is written for this
+# project; none comes from MTSamples or any patient record.
+#
+# expected_label: clear single-specialty descriptions must get this label without
+#                 being marked uncertain.
+# invariance:     surface variants (case, punctuation, spacing) must keep the label of
+#                 their base description.
+# abstention:     descriptions that span specialties should be marked uncertain.
+# out_of_scope:   informational only. The model has no out-of-distribution detection,
+#                 so these are reported, not gated (see docs/validation-and-operations.md).
+
+expected_label:
+  - {text: "Coronary artery bypass grafting for three-vessel coronary artery disease.", label: "Cardiovascular & Pulmonary"}
+  - {text: "Echocardiogram showing reduced left ventricular ejection fraction.", label: "Cardiovascular & Pulmonary"}
+  - {text: "Bronchoscopy for evaluation of a right upper lobe lung nodule.", label: "Cardiovascular & Pulmonary"}
+  - {text: "Cataract extraction with intraocular lens implantation, left eye.", label: "ENT & Ophthalmology"}
+  - {text: "Tonsillectomy and adenoidectomy for recurrent tonsillitis.", label: "ENT & Ophthalmology"}
+  - {text: "Septoplasty for deviated nasal septum and nasal obstruction.", label: "ENT & Ophthalmology"}
+  - {text: "Laparoscopic cholecystectomy for symptomatic cholelithiasis.", label: "Gastroenterology"}
+  - {text: "Colonoscopy with polypectomy of a sigmoid colon polyp.", label: "Gastroenterology"}
+  - {text: "Esophagogastroduodenoscopy for evaluation of epigastric pain and reflux.", label: "Gastroenterology"}
+  - {text: "Follow-up of type 2 diabetes mellitus and essential hypertension.", label: "General Medicine"}
+  - {text: "Annual physical examination with review of chronic medications.", label: "General Medicine"}
+  - {text: "Management of hypothyroidism with adjustment of levothyroxine dose.", label: "General Medicine"}
+  - {text: "Electroencephalogram for evaluation of new-onset seizures.", label: "Neurology"}
+  - {text: "Right frontal craniotomy for resection of a brain tumor.", label: "Neurology"}
+  - {text: "Evaluation of progressive memory loss and suspected dementia.", label: "Neurology"}
+  - {text: "Low transverse cesarean section for arrest of labor.", label: "OB-GYN"}
+  - {text: "Total abdominal hysterectomy for symptomatic uterine fibroids.", label: "OB-GYN"}
+  - {text: "Routine prenatal visit at 28 weeks gestation.", label: "OB-GYN"}
+  - {text: "Right total knee arthroplasty for severe osteoarthritis.", label: "Orthopedics"}
+  - {text: "Arthroscopic rotator cuff repair of the left shoulder.", label: "Orthopedics"}
+  - {text: "Open reduction and internal fixation of a distal radius fracture.", label: "Orthopedics"}
+  - {text: "Transurethral resection of the prostate for benign prostatic hyperplasia.", label: "Urology"}
+  - {text: "Cystoscopy for evaluation of painless gross hematuria.", label: "Urology"}
+  - {text: "Ureteroscopy and laser lithotripsy of a left ureteral stone.", label: "Urology"}
+
+invariance:
+  - base: "Right total knee arthroplasty for severe osteoarthritis."
+    variants: ["RIGHT TOTAL KNEE ARTHROPLASTY FOR SEVERE OSTEOARTHRITIS.", "right total knee arthroplasty for severe osteoarthritis", "  Right total knee arthroplasty   for severe osteoarthritis. "]
+  - base: "Laparoscopic cholecystectomy for symptomatic cholelithiasis."
+    variants: ["laparoscopic cholecystectomy for symptomatic cholelithiasis", "Laparoscopic cholecystectomy, for symptomatic cholelithiasis!"]
+  - base: "Cataract extraction with intraocular lens implantation, left eye."
+    variants: ["CATARACT EXTRACTION WITH INTRAOCULAR LENS IMPLANTATION, LEFT EYE", "Cataract extraction with intraocular lens implantation left eye"]
+  - base: "Cystoscopy for evaluation of painless gross hematuria."
+    variants: ["cystoscopy for evaluation of painless gross hematuria", "Cystoscopy - evaluation of painless gross hematuria."]
+
+abstention:
+  - "Chest pain and back pain after a fall."
+  - "Abdominal pain and urinary frequency."
+  - "Pelvic pain with blood in the urine."
+  - "Dizziness and blurred vision."
+  - "Headache and abdominal pain with nausea."
+
+out_of_scope:
+  - "Follow-up visit."
+  - "Patient called to reschedule the appointment."
+  - "The weather is sunny today."
+  - "Eczema flare on both forearms treated with topical steroids."
+  - "Well-child visit for a healthy 2-month-old infant."

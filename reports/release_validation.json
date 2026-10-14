@@ -1,0 +1,107 @@
+{
+  "created_utc": "20261014T085439Z",
+  "decision": "PASS",
+  "model": {
+    "weights_sha256": "a2f4ad5c6d97bdd224e3703b00e70ea2686e5e3cbc0dcc48567cc21fa6b39bc2",
+    "run": "pubmedbert_dedup_seed42_trainseed42_20261013T164358Z",
+    "training_commit": "4d8e6690e03a7da78bffa8e63a59ec483187a49f"
+  },
+  "validated_with": {
+    "commit": "19fcd934ff627b6d60377aa946e430779c4c6c09",
+    "dirty": false
+  },
+  "checks": [
+    {
+      "check": "Evaluation report belongs to this bundle",
+      "value": "pubmedbert_dedup_seed42_trainseed42_20261013T164358Z",
+      "requirement": "same training run and commit",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Test macro F1",
+      "value": 0.8894228092933865,
+      "requirement": ">= 0.85",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Macro F1 gain over baseline, 95% CI lower bound",
+      "value": 0.10672080004023995,
+      "requirement": "> 0.0",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Lowest per-class F1 (General Medicine)",
+      "value": 0.7947019867549668,
+      "requirement": ">= 0.75",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Calibrated ECE",
+      "value": 0.05340828685581173,
+      "requirement": "<= 0.08",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Accuracy on answered inputs",
+      "value": 0.9157608695652174,
+      "requirement": ">= 0.9",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Share of inputs answered",
+      "value": 0.9246231155778895,
+      "requirement": ">= 0.85",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Expected labels (24 clear cases)",
+      "value": 1.0,
+      "requirement": ">= 1.0",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Invariance to case, punctuation, spacing (9 variants)",
+      "value": 1.0,
+      "requirement": ">= 1.0",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Abstention on ambiguous descriptions (5 cases)",
+      "value": 0.8,
+      "requirement": ">= 0.8",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Out-of-scope inputs answered confidently (5 cases)",
+      "value": 1.0,
+      "requirement": "reported only; no out-of-distribution detection",
+      "passed": true,
+      "kind": "info"
+    },
+    {
+      "check": "Single-request CPU latency p95 (ms)",
+      "value": 90.21572500014372,
+      "requirement": "<= 500 (p50 78 ms)",
+      "passed": true,
+      "kind": "gate"
+    }
+  ],
+  "behavioural_failures": [
+    {
+      "type": "abstention",
+      "text": "Headache and abdominal pain with nausea.",
+      "got": "General Medicine",
+      "score": 0.9606365905128044
+    }
+  ]
+}
