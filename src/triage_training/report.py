@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 from triage_training.artifacts import utc_timestamp, write_json
 from triage_training.config import TrainingConfig
@@ -20,6 +22,7 @@ from triage_training.stats import (
     paired_bootstrap_difference, selective_prediction,
 )
 
+NEAR_DUPLICATE_SIMILARITY = 0.8
 TARGET_ANSWERED_ACCURACY = 0.90
 THRESHOLDS = [0.0, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
@@ -150,6 +153,26 @@ def _label_source(runs: list[RunScores], dataset: PreparedDataset) -> dict:
     return out
 
 
+def _near_duplicates(runs: list[RunScores], dataset: PreparedDataset) -> dict:
+    """Exact deduplication misses paraphrases; measure how close test rows are to train."""
+    train, test = dataset.splits["train"], dataset.splits["test"].set_index("source_row")
+    test = test.loc[runs[0].splits["test"]["source_row"]]
+    vectorizer = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), sublinear_tf=True)
+    vectorizer.fit(list(train["description"]) + list(test["description"]))
+    nearest = cosine_similarity(vectorizer.transform(test["description"]),
+                                vectorizer.transform(train["description"])).max(axis=1)
+    near = nearest >= NEAR_DUPLICATE_SIMILARITY
+    return {
+        "similarity": "character 3-5 gram TF-IDF cosine to the nearest train description",
+        "median_nearest_similarity": float(np.median(nearest)),
+        "share_at_least": {str(t): float((nearest >= t).mean()) for t in (0.9, 0.8, 0.7)},
+        "accuracy": {run.display_name: {
+            "near_duplicate": _accuracy_by(near, run.predictions() == run.splits["test"]["y_true"]),
+            "other": _accuracy_by(~near, run.predictions() == run.splits["test"]["y_true"]),
+        } for run in runs},
+    }
+
+
 def _leakage(run: RunScores, config: TrainingConfig) -> dict:
     """Split legacy test accuracy into rows whose description was also in train."""
     split_seed = run.manifest["dataset"]["split_seed"]
@@ -212,6 +235,7 @@ def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
         "errors": _errors(primary, labels),
         "calibration": calibration,
         "label_source": _label_source([primary, baseline], dataset),
+        "near_duplicates": _near_duplicates([primary, baseline], dataset),
         "leakage": [_leakage(run, config) for run in rowlevel],
     }
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -308,6 +332,20 @@ def render_markdown(report: dict) -> str:
     for name, row in report["label_source"].items():
         lines.append(f"| {name} | {_pct(row['direct']['accuracy'])} (n={row['direct']['n']}) | "
                      f"{_pct(row['keyword']['accuracy'])} (n={row['keyword']['n']}) |")
+
+    nd = report["near_duplicates"]
+    lines += ["", "### Near duplicates", "",
+              "Deduplication removes exact copies after normalising case, punctuation, and "
+              f"whitespace. Measured by {nd['similarity']}, the median test row scores "
+              f"{nd['median_nearest_similarity']:.2f}; "
+              + ", ".join(f"{_pct(v)} score ≥ {k}" for k, v in nd["share_at_least"].items())
+              + ".", "",
+              f"| Model | Near duplicate (≥ {NEAR_DUPLICATE_SIMILARITY}) | Other rows |",
+              "| --- | --- | --- |"]
+    for name, row in nd["accuracy"].items():
+        lines.append(f"| {name} | {_pct(row['near_duplicate']['accuracy'])} "
+                     f"(n={row['near_duplicate']['n']}) | {_pct(row['other']['accuracy'])} "
+                     f"(n={row['other']['n']}) |")
 
     cal = report["calibration"]
     u = cal["uncertain_threshold"]
