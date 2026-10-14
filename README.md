@@ -177,10 +177,15 @@ bootstrap intervals; full analysis in [reports/model_evaluation.md](reports/mode
 | --- | --- | --- |
 | TF-IDF + logistic regression | 0.744 [0.701, 0.786] | 0.742 [0.691, 0.785] |
 | PubMedBERT (seed 42, served) | 0.884 [0.854, 0.915] | 0.889 [0.857, 0.919] |
-| PubMedBERT, 3 seeds | | 0.892 ± 0.003 (mean ± SD) |
+| PubMedBERT, 3 training seeds | | 0.892 ± 0.003 (mean ± SD) |
+| PubMedBERT, 6 data splits | | **0.876 ± 0.012** (0.858–0.889) |
+| TF-IDF + logistic regression, 6 data splits | | 0.761 ± 0.022 (0.738–0.788) |
+
+The served split happens to be PubMedBERT's best of six, so 0.876 is the more
+representative figure ([split variation](reports/split_variation.md)).
 
 - PubMedBERT beats the baseline by +0.148 macro F1 [+0.107, +0.192]; exact McNemar
-  p < 0.001.
+  p < 0.001. It wins on every one of six data splits (mean +0.115, smallest +0.071).
 - Splitting rows instead of unique descriptions put 365 identical descriptions in both
   train and test. On that split, test rows seen in training scored 99% (memorised) and
   rows with conflicting labels 41%, so its 0.80 macro F1 mixed both effects. This is why
@@ -189,7 +194,7 @@ bootstrap intervals; full analysis in [reports/model_evaluation.md](reports/mode
   keyword-rule rows the description contains a keyword of its own label, so part of the
   headline score reflects the labeling rules. **86% on directly mapped rows is the more
   conservative estimate.**
-- These are internal results (same source, same labeling rules, one split). No external
+- These are internal results (same source, same labeling rules). No external
   validation has been done, and `uncertain` does not detect out-of-scope input: 90% of
   descriptions from excluded specialties still received a confident label.
 

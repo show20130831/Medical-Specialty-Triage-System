@@ -26,6 +26,8 @@ def main(argv: list[str] | None = None) -> None:
     commands = parser.add_subparsers(dest="command", required=True)
 
     prepare = commands.add_parser("prepare-data", help="clean, label, deduplicate, and split")
+    prepare.add_argument("--split-seed", type=int,
+                         help="override split.seed to measure variation across data splits")
     prepare.add_argument("--keep-duplicates", action="store_true",
                          help="split rows instead of unique descriptions (leakage study only)")
 
@@ -50,13 +52,22 @@ def main(argv: list[str] | None = None) -> None:
                         help="extra fine-tuned runs with other seeds")
     report.add_argument("--rowlevel", type=Path, action="append", default=[],
                         help="runs trained on the row-level split")
+    report.add_argument("--serving-run", type=Path,
+                        help="the primary bundle re-scored on CPU with evaluate-model")
     report.add_argument("--out", type=Path, default=Path("reports"))
+
+    splits = commands.add_parser("summarize-splits",
+                                 help="compare runs trained on different data splits")
+    splits.add_argument("--run", type=Path, action="append", required=True)
+    splits.add_argument("--out", type=Path, default=Path("reports"))
 
     gate = commands.add_parser("validate-model", help="release gate for a model bundle")
     gate.add_argument("--model-dir", type=Path, required=True)
     gate.add_argument("--evaluation", type=Path, default=Path("reports/model_evaluation.json"))
     gate.add_argument("--criteria", type=Path, default=Path("configs/release_criteria.yaml"))
     gate.add_argument("--out", type=Path, default=Path("reports"))
+    gate.add_argument("--out-of-taxonomy", action="store_true",
+                      help="also score excluded-specialty descriptions from the raw data")
 
     drift = commands.add_parser("monitor-drift", help="compare a /metrics snapshot with reference")
     drift.add_argument("--snapshot", type=Path, required=True, help="JSON saved from GET /metrics")
@@ -70,6 +81,8 @@ def main(argv: list[str] | None = None) -> None:
     try:
         config = load_config(args.config)
         if args.command == "prepare-data":
+            if args.split_seed is not None:
+                config = replace(config, split=replace(config.split, seed=args.split_seed))
             prepared = prepare_dataset(config, keep_duplicates=args.keep_duplicates)
             out_dir = config.paths.data_dir / dataset_name(config, args.keep_duplicates)
             save_dataset(prepared, out_dir)
@@ -81,10 +94,17 @@ def main(argv: list[str] | None = None) -> None:
         if args.command == "validate-model":
             from triage_training.release import run_release_validation
             result = run_release_validation(args.model_dir.resolve(), args.evaluation,
-                                            args.criteria, args.out)
+                                            args.criteria, args.out,
+                                            config if args.out_of_taxonomy else None)
             logger.info("Release decision: %s (report in %s)", result["decision"], args.out)
             if result["decision"] != "PASS":
                 sys.exit(1)
+            return
+
+        if args.command == "summarize-splits":
+            from triage_training.splits import summarize_splits
+            summarize_splits(config, args.run, args.out)
+            logger.info("Wrote split variation report to %s", args.out)
             return
 
         if args.command == "monitor-drift":
@@ -95,7 +115,8 @@ def main(argv: list[str] | None = None) -> None:
 
         if args.command == "report":
             from triage_training.report import build_report
-            build_report(config, args.model, args.baseline, args.seed_run, args.rowlevel, args.out)
+            build_report(config, args.model, args.baseline, args.seed_run, args.rowlevel, args.out,
+                         args.serving_run)
             logger.info("Wrote evaluation report to %s", args.out)
             return
 

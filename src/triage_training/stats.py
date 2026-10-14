@@ -127,3 +127,54 @@ def choose_threshold(probabilities: np.ndarray, y_true: np.ndarray,
         if row["coverage"] > 0 and row["accuracy"] >= target_accuracy:
             return float(threshold)
     return 1.0
+
+
+def brier_score(probabilities: np.ndarray, y_true: np.ndarray) -> float:
+    """Multiclass Brier score: mean squared distance to the one-hot label (0 is perfect)."""
+    one_hot = np.eye(probabilities.shape[1])[y_true]
+    return float(((probabilities - one_hot) ** 2).sum(axis=1).mean())
+
+
+def reliability_table(probabilities: np.ndarray, y_true: np.ndarray,
+                      edges: tuple[float, ...] = (0.5, 0.65, 0.8, 0.9, 0.95)) -> list[dict]:
+    """Accuracy against mean confidence within confidence bands."""
+    confidence = probabilities.max(axis=1)
+    correct = probabilities.argmax(axis=1) == y_true
+    bounds = [0.0, *edges, 1.0 + 1e-9]
+    rows = []
+    for low, high in zip(bounds, bounds[1:]):
+        mask = (confidence >= low) & (confidence < high)
+        rows.append({"low": low, "high": min(high, 1.0), "n": int(mask.sum()),
+                     "mean_confidence": float(confidence[mask].mean()) if mask.any() else None,
+                     "accuracy": float(correct[mask].mean()) if mask.any() else None})
+    return rows
+
+
+def selective_bootstrap(probabilities: np.ndarray, y_true: np.ndarray, threshold: float,
+                        n_resamples: int = 2000, seed: int = 0) -> dict:
+    """Percentile intervals for coverage and answered accuracy at a fixed threshold."""
+    rng = np.random.default_rng(seed)
+    answered = probabilities.max(axis=1) >= threshold
+    correct = probabilities.argmax(axis=1) == y_true
+    coverage, accuracy_answered = [], []
+    for _ in range(n_resamples):
+        idx = rng.integers(0, len(y_true), len(y_true))
+        coverage.append(answered[idx].mean())
+        if answered[idx].any():
+            accuracy_answered.append(correct[idx][answered[idx]].mean())
+    return {name: {"ci_low": float(np.percentile(values, 2.5)),
+                   "ci_high": float(np.percentile(values, 97.5))}
+            for name, values in (("coverage", coverage), ("accuracy", accuracy_answered))}
+
+
+def threshold_stability(val_probabilities: np.ndarray, val_true: np.ndarray,
+                        target_accuracy: float, n_resamples: int = 1000,
+                        seed: int = 0) -> list[float]:
+    """Thresholds chosen on bootstrap resamples of validation: how much the choice moves."""
+    rng = np.random.default_rng(seed)
+    n = len(val_true)
+    chosen = []
+    for _ in range(n_resamples):
+        idx = rng.integers(0, n, n)
+        chosen.append(choose_threshold(val_probabilities[idx], val_true[idx], target_accuracy))
+    return chosen

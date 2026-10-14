@@ -1,5 +1,5 @@
 {
-  "created_utc": "20261014T085439Z",
+  "created_utc": "20261014T091904Z",
   "decision": "PASS",
   "model": {
     "weights_sha256": "a2f4ad5c6d97bdd224e3703b00e70ea2686e5e3cbc0dcc48567cc21fa6b39bc2",
@@ -7,7 +7,7 @@
     "training_commit": "4d8e6690e03a7da78bffa8e63a59ec483187a49f"
   },
   "validated_with": {
-    "commit": "19fcd934ff627b6d60377aa946e430779c4c6c09",
+    "commit": "3a9459dc63b9393d7da4413c9881d5e2b42c21fe",
     "dirty": false
   },
   "checks": [
@@ -90,10 +90,17 @@
     },
     {
       "check": "Single-request CPU latency p95 (ms)",
-      "value": 90.21572500014372,
-      "requirement": "<= 500 (p50 78 ms)",
+      "value": 67.01030000049286,
+      "requirement": "<= 500 (p50 61 ms)",
       "passed": true,
       "kind": "gate"
+    },
+    {
+      "check": "Excluded-specialty descriptions answered confidently (745 unique)",
+      "value": 0.9046979865771811,
+      "requirement": "reported only; no out-of-distribution detection",
+      "passed": true,
+      "kind": "info"
     }
   ],
   "behavioural_failures": [
@@ -103,5 +110,119 @@
       "got": "General Medicine",
       "score": 0.9606365905128044
     }
-  ]
+  ],
+  "out_of_taxonomy": {
+    "descriptions": 745,
+    "specialties": 16,
+    "uncertain_rate": 0.0953020134228188,
+    "share_score_at_least_0_9": 0.687248322147651,
+    "predicted_label_share": {
+      "General Medicine": 0.349,
+      "Neurology": 0.18,
+      "Orthopedics": 0.138,
+      "Cardiovascular & Pulmonary": 0.114,
+      "ENT & Ophthalmology": 0.075,
+      "Gastroenterology": 0.071,
+      "Urology": 0.044,
+      "OB-GYN": 0.028
+    },
+    "by_specialty": [
+      {
+        "medical_specialty": "Consult - History and Phy.",
+        "n": 404,
+        "uncertain_rate": 0.057,
+        "median_score": 0.94
+      },
+      {
+        "medical_specialty": "Pediatrics - Neonatal",
+        "n": 70,
+        "uncertain_rate": 0.171,
+        "median_score": 0.936
+      },
+      {
+        "medical_specialty": "Emergency Room Reports",
+        "n": 67,
+        "uncertain_rate": 0.164,
+        "median_score": 0.924
+      },
+      {
+        "medical_specialty": "Podiatry",
+        "n": 47,
+        "uncertain_rate": 0.149,
+        "median_score": 0.979
+      },
+      {
+        "medical_specialty": "Dermatology",
+        "n": 25,
+        "uncertain_rate": 0.16,
+        "median_score": 0.911
+      },
+      {
+        "medical_specialty": "Cosmetic / Plastic Surgery",
+        "n": 23,
+        "uncertain_rate": 0.087,
+        "median_score": 0.889
+      },
+      {
+        "medical_specialty": "Letters",
+        "n": 21,
+        "uncertain_rate": 0.143,
+        "median_score": 0.946
+      },
+      {
+        "medical_specialty": "Sleep Medicine",
+        "n": 20,
+        "uncertain_rate": 0.1,
+        "median_score": 0.942
+      },
+      {
+        "medical_specialty": "IME-QME-Work Comp etc.",
+        "n": 12,
+        "uncertain_rate": 0.0,
+        "median_score": 0.937
+      },
+      {
+        "medical_specialty": "Bariatrics",
+        "n": 11,
+        "uncertain_rate": 0.091,
+        "median_score": 0.947
+      },
+      {
+        "medical_specialty": "Diets and Nutritions",
+        "n": 10,
+        "uncertain_rate": 0.2,
+        "median_score": 0.771
+      },
+      {
+        "medical_specialty": "Autopsy",
+        "n": 8,
+        "uncertain_rate": 0.25,
+        "median_score": 0.893
+      },
+      {
+        "medical_specialty": "Speech - Language",
+        "n": 8,
+        "uncertain_rate": 0.0,
+        "median_score": 0.902
+      },
+      {
+        "medical_specialty": "Lab Medicine - Pathology",
+        "n": 8,
+        "uncertain_rate": 0.0,
+        "median_score": 0.951
+      },
+      {
+        "medical_specialty": "Hospice - Palliative Care",
+        "n": 6,
+        "uncertain_rate": 0.333,
+        "median_score": 0.943
+      },
+      {
+        "medical_specialty": "Chiropractic",
+        "n": 5,
+        "uncertain_rate": 0.0,
+        "median_score": 0.972
+      }
+    ]
+  }
 }

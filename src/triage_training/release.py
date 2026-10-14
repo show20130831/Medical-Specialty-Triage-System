@@ -112,8 +112,45 @@ def latency_check(predict, texts: list[str], limits: dict) -> dict:
                   f"<= {limits['p95_ms_max']} (p50 {p50:.0f} ms)", p95 <= limits["p95_ms_max"])
 
 
+def out_of_taxonomy_analysis(predict, config) -> dict:
+    """Confidence on real descriptions from specialties the model was never trained on.
+
+    Informational: the model has no "none of these" answer, so this measures how often
+    such input slips through as a confident suggestion. Only aggregates are returned.
+    """
+    import pandas as pd
+
+    from triage_training.data import description_key, load_raw
+    from triage_training.taxonomy import load_taxonomy
+
+    taxonomy = load_taxonomy(config.data.taxonomy)
+    known = set(taxonomy.direct_mapping) | taxonomy.keyword_specialties
+    raw = load_raw(config.data.raw_csv, config.data.encoding).dropna(
+        subset=["description", "medical_specialty"])
+    raw["medical_specialty"] = raw["medical_specialty"].str.strip()
+    excluded = raw[~raw["medical_specialty"].isin(known)
+                   & raw["description"].str.strip().ne("")].copy()
+    excluded = excluded.assign(key=excluded["description"].map(description_key))
+    excluded = excluded.drop_duplicates("key")
+    predictions = [predict(text) for text in excluded["description"]]
+    excluded["score"] = [p.score for p in predictions]
+    excluded["uncertain"] = [p.uncertain for p in predictions]
+    excluded["label"] = [p.label for p in predictions]
+    by_specialty = excluded.groupby("medical_specialty").agg(
+        n=("score", "size"), uncertain_rate=("uncertain", "mean"),
+        median_score=("score", "median")).sort_values("n", ascending=False)
+    return {
+        "descriptions": int(len(excluded)),
+        "specialties": int(excluded["medical_specialty"].nunique()),
+        "uncertain_rate": float(excluded["uncertain"].mean()),
+        "share_score_at_least_0_9": float((excluded["score"] >= 0.9).mean()),
+        "predicted_label_share": excluded["label"].value_counts(normalize=True).round(3).to_dict(),
+        "by_specialty": pd.DataFrame(by_specialty).round(3).reset_index().to_dict("records"),
+    }
+
+
 def run_release_validation(model_dir: Path, evaluation_path: Path, criteria_path: Path,
-                           out_dir: Path) -> dict:
+                           out_dir: Path, config=None) -> dict:
     from triage_system.model_loader import load_local_model
     from triage_system.predictor import predict_description
 
@@ -132,6 +169,12 @@ def run_release_validation(model_dir: Path, evaluation_path: Path, criteria_path
     texts = [case["text"] for case in cases["expected_label"]]
     checks = [*offline_checks(evaluation, manifest, criteria["offline_metrics"]),
               *behaviour, latency_check(predict, texts, criteria["latency"])]
+    out_of_taxonomy = out_of_taxonomy_analysis(predict, config) if config else None
+    if out_of_taxonomy:
+        checks.append(_check(
+            f"Excluded-specialty descriptions answered confidently "
+            f"({out_of_taxonomy['descriptions']} unique)", 1 - out_of_taxonomy["uncertain_rate"],
+            "reported only; no out-of-distribution detection", True, kind="info"))
     result = {
         "created_utc": utc_timestamp(),
         "decision": "PASS" if all(c["passed"] for c in checks) else "FAIL",
@@ -140,6 +183,7 @@ def run_release_validation(model_dir: Path, evaluation_path: Path, criteria_path
         "validated_with": git_state(),
         "checks": checks,
         "behavioural_failures": failures,
+        "out_of_taxonomy": out_of_taxonomy,
     }
     write_json(out_dir / "release_validation.json", result)
     (out_dir / "release_validation.md").write_text(render_markdown(result), encoding="utf-8")
@@ -176,4 +220,19 @@ def render_markdown(result: dict) -> str:
             detail = f"expected {f['want']}, got {f['got']}" if "want" in f else \
                 f"got {f['got']} at {f['score']:.2f}, not marked uncertain"
             lines.append(f"- {f['type']}: \"{f['text']}\" — {detail}")
+    oot = result.get("out_of_taxonomy")
+    if oot:
+        top = sorted(oot["predicted_label_share"].items(), key=lambda kv: -kv[1])[:3]
+        lines += ["", "## Excluded specialties", "",
+                  f"{oot['descriptions']} unique MTSamples descriptions from {oot['specialties']} "
+                  f"specialties outside the taxonomy were scored. {oot['uncertain_rate']:.1%} were "
+                  f"marked uncertain and {oot['share_score_at_least_0_9']:.1%} scored at least "
+                  "0.9. Most common suggestions: "
+                  + ", ".join(f"{label} ({share:.0%})" for label, share in top)
+                  + ". Some are clinically plausible (Podiatry → Orthopedics); the model cannot "
+                  "answer that an input fits none of the eight groups.", "",
+                  "| Source specialty | Descriptions | Marked uncertain | Median score |",
+                  "| --- | --- | --- | --- |"]
+        lines += [f"| {r['medical_specialty']} | {r['n']} | {r['uncertain_rate']:.0%} | "
+                  f"{r['median_score']:.2f} |" for r in oot["by_specialty"]]
     return "\n".join(lines) + "\n"

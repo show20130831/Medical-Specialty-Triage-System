@@ -21,8 +21,8 @@ fixed in advance). It does not claim compliance with any regulation or standard.
 
 ## 2. Release Validation
 
-`python -m triage_training validate-model --model-dir <bundle>` loads the bundle on CPU,
-checks it against `configs/release_criteria.yaml`, writes
+`python -m triage_training validate-model --model-dir <bundle> [--out-of-taxonomy]` loads
+the bundle on CPU, checks it against `configs/release_criteria.yaml`, writes
 `reports/release_validation.md`, and exits non-zero on failure. The current bundle
 passes; see [the release report](../reports/release_validation.md).
 
@@ -40,13 +40,18 @@ passes; see [the release report](../reports/release_validation.md).
 | Expected labels, 24 clear synthetic cases | 100% | 100% | Basic competence on unambiguous descriptions |
 | Invariance to case, punctuation, spacing, 9 variants | 100% | 100% | Surface edits must not change the answer |
 | Abstention on ambiguous descriptions, 5 cases | ≥ 80% | 80% | Ambiguity must surface as `uncertain` |
-| Single-request CPU latency p95 | ≤ 500 ms | 90 ms | Interactive use on CPU |
+| Single-request CPU latency p95 | ≤ 500 ms | under 100 ms | Interactive use on CPU |
 | Out-of-scope inputs answered confidently | Reported only | 5 of 5 | Known gap; gating on it would block every bundle |
+| Excluded-specialty descriptions answered confidently (`--out-of-taxonomy`) | Reported only | 90.5% of 745 | Same gap measured on real text |
 
 ### Limits of the gate
 
 - Offline metrics come from GPU evaluation. The served CPU model was checked separately
-  (397 of 398 test predictions identical, macro F1 0.886), which also passes.
+  (top label 99.7%, top-3 order 97.7%, uncertain flag 99.7% agreement; macro F1 0.886),
+  which also passes.
+- The abstention criteria check test behaviour at the chosen threshold, not the
+  threshold itself, because the threshold is unstable on 318 validation rows (95%
+  resample range 0.00–0.71; see the evaluation report).
 - Four of the five abstention cases were seen while exploring the model before the gate
   was written, so the 80% abstention rate is optimistic. The other behavioural cases were
   written before running the model.

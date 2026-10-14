@@ -21,9 +21,10 @@ from triage_training.data import PreparedDataset, description_key, load_dataset
 from triage_training.evaluation import classification_metrics
 from triage_training.taxonomy import Taxonomy, load_taxonomy
 from triage_training.stats import (
-    accuracy, bootstrap_ci, calibrate, choose_threshold, expected_calibration_error,
-    fit_temperature, macro_f1, mcnemar_exact, negative_log_likelihood,
-    paired_bootstrap_difference, selective_prediction,
+    accuracy, bootstrap_ci, brier_score, calibrate, choose_threshold,
+    expected_calibration_error, fit_temperature, macro_f1, mcnemar_exact,
+    negative_log_likelihood, paired_bootstrap_difference, reliability_table,
+    selective_bootstrap, selective_prediction, threshold_stability,
 )
 
 NEAR_DUPLICATE_SIMILARITY = 0.8
@@ -116,12 +117,17 @@ def _errors(run: RunScores, labels: tuple[str, ...]) -> dict:
     }
 
 
-def _calibration(run: RunScores) -> dict:
+def _calibration(run: RunScores, labels: tuple[str, ...]) -> dict:
     val, test = run.splits["val"], run.splits["test"]
     temperature = fit_temperature(val["logits"], val["y_true"])
     raw_test, calibrated_test = calibrate(test["logits"], 1.0), calibrate(test["logits"], temperature)
-    threshold = choose_threshold(calibrate(val["logits"], temperature), val["y_true"],
-                                 TARGET_ANSWERED_ACCURACY)
+    calibrated_val = calibrate(val["logits"], temperature)
+    threshold = choose_threshold(calibrated_val, val["y_true"], TARGET_ANSWERED_ACCURACY)
+    resampled = np.array(threshold_stability(calibrated_val, val["y_true"],
+                                             TARGET_ANSWERED_ACCURACY))
+    low, median, high = (float(v) for v in np.percentile(resampled, [2.5, 50, 97.5]))
+    abstained = calibrated_test.max(axis=1) < threshold
+    correct = calibrated_test.argmax(axis=1) == test["y_true"]
     return {
         "temperature": temperature,
         "test_ece": {"raw": expected_calibration_error(raw_test, test["y_true"]),
@@ -129,13 +135,51 @@ def _calibration(run: RunScores) -> dict:
         "test_nll": {"raw": negative_log_likelihood(test["logits"], test["y_true"]),
                      "calibrated": negative_log_likelihood(test["logits"], test["y_true"],
                                                            temperature)},
+        "test_brier": {"raw": brier_score(raw_test, test["y_true"]),
+                       "calibrated": brier_score(calibrated_test, test["y_true"])},
+        "reliability_test": reliability_table(calibrated_test, test["y_true"]),
         "selective_test": selective_prediction(calibrated_test, test["y_true"], THRESHOLDS),
         "uncertain_threshold": {
             "target_answered_accuracy": TARGET_ANSWERED_ACCURACY,
             "chosen_on": "val",
             "threshold": threshold,
             "test": selective_prediction(calibrated_test, test["y_true"], [threshold])[0],
+            "test_ci": selective_bootstrap(calibrated_test, test["y_true"], threshold),
+            "stability": {
+                "validation_resamples": int(len(resampled)),
+                "threshold_median": median, "threshold_ci_low": low, "threshold_ci_high": high,
+                "test_at_ci_low": selective_prediction(calibrated_test, test["y_true"], [low])[0],
+                "test_at_ci_high": selective_prediction(calibrated_test, test["y_true"], [high])[0],
+            },
+            "per_class_test": {
+                label: {"n": int((test["y_true"] == i).sum()),
+                        "abstention_rate": float(abstained[test["y_true"] == i].mean()),
+                        "answered_accuracy": float(correct[(test["y_true"] == i) & ~abstained].mean())
+                        if ((test["y_true"] == i) & ~abstained).any() else None}
+                for i, label in enumerate(labels)
+            },
         },
+    }
+
+
+def _parity(reference: RunScores, other: RunScores, temperature: float, threshold: float) -> dict:
+    """Agreement between the evaluated run (GPU) and the same bundle scored elsewhere (CPU)."""
+    if not np.array_equal(reference.splits["test"]["source_row"], other.splits["test"]["source_row"]):
+        raise ValueError(f"{other.run_dir.name} was not evaluated on the same test rows.")
+    a = calibrate(reference.splits["test"]["logits"], temperature)
+    b = calibrate(other.splits["test"]["logits"], temperature)
+    top3 = lambda p: np.argsort(-p, axis=1)[:, :3]  # noqa: E731
+    y_true = other.splits["test"]["y_true"]
+    return {
+        "reference_run": reference.run_dir.name,
+        "compared_run": other.run_dir.name,
+        "rows": int(len(a)),
+        "label_agreement": float((a.argmax(1) == b.argmax(1)).mean()),
+        "top3_order_agreement": float((top3(a) == top3(b)).all(axis=1).mean()),
+        "uncertain_agreement": float(((a.max(1) < threshold) == (b.max(1) < threshold)).mean()),
+        "max_abs_probability_difference": float(np.abs(a - b).max()),
+        "compared_macro_f1": macro_f1(y_true, b.argmax(1)),
+        "compared_accuracy": accuracy(y_true, b.argmax(1)),
     }
 
 
@@ -256,7 +300,8 @@ def _leakage(run: RunScores, config: TrainingConfig) -> dict:
 
 
 def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
-                 seed_dirs: list[Path], rowlevel_dirs: list[Path], out_dir: Path) -> dict:
+                 seed_dirs: list[Path], rowlevel_dirs: list[Path], out_dir: Path,
+                 serving_dir: Path | None = None) -> dict:
     primary, baseline = load_run(model_dir), load_run(baseline_dir)
     seeds = [load_run(d) for d in seed_dirs]
     rowlevel = [load_run(d) for d in rowlevel_dirs]
@@ -272,7 +317,7 @@ def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
     labels = dataset.labels
     finetuned = [primary, *seeds]
     seed_scores = [macro_f1(r.splits["test"]["y_true"], r.predictions()) for r in finetuned]
-    calibration = _calibration(primary)
+    calibration = _calibration(primary, labels)
     report = {
         "created_utc": utc_timestamp(),
         "dataset": {k: dataset.report[k] for k in ("audit", "split_sizes", "overlap",
@@ -295,6 +340,9 @@ def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
             primary, dataset, load_taxonomy(config.data.taxonomy)),
         "near_duplicates": _near_duplicates([primary, baseline], dataset),
         "leakage": [_leakage(run, config) for run in rowlevel],
+        "serving_parity": _parity(primary, load_run(serving_dir), calibration["temperature"],
+                                  calibration["uncertain_threshold"]["threshold"])
+        if serving_dir else None,
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     write_json(out_dir / "model_evaluation.json", report)
@@ -433,11 +481,53 @@ def render_markdown(report: dict) -> str:
     ]
     lines += [f"| {r['threshold']:.1f} | {_pct(r['coverage'])} | {_pct(r['accuracy'])} |"
               for r in cal["selective_test"]]
+    ci, st = u["test_ci"], u["stability"]
     lines += ["", f"The serving threshold is chosen on validation as the lowest confidence "
                   f"reaching {_pct(u['target_answered_accuracy'])} accuracy: "
-                  f"{u['threshold']:.2f}. On test it answers {_pct(u['test']['coverage'])} of "
-                  f"inputs with {_pct(u['test']['accuracy'])} accuracy; the rest are returned "
-                  f"as uncertain."]
+                  f"{u['threshold']:.2f}. On test it answers {_pct(u['test']['coverage'])} "
+                  f"[{_pct(ci['coverage']['ci_low'])}, {_pct(ci['coverage']['ci_high'])}] of "
+                  f"inputs with {_pct(u['test']['accuracy'])} "
+                  f"[{_pct(ci['accuracy']['ci_low'])}, {_pct(ci['accuracy']['ci_high'])}] "
+                  "accuracy; the rest are returned as uncertain.",
+              "",
+              f"**Threshold stability.** Re-choosing the threshold on "
+              f"{st['validation_resamples']:,} bootstrap resamples of the validation split gives "
+              f"a median of {st['threshold_median']:.2f} and a 95% range of "
+              f"{st['threshold_ci_low']:.2f}–{st['threshold_ci_high']:.2f}. Across that range, "
+              f"test coverage runs from {_pct(st['test_at_ci_high']['coverage'])} to "
+              f"{_pct(st['test_at_ci_low']['coverage'])} and answered accuracy from "
+              f"{_pct(st['test_at_ci_low']['accuracy'])} to "
+              f"{_pct(st['test_at_ci_high']['accuracy'])}. With 318 validation rows the exact "
+              "threshold is not stable; the release gate checks the resulting test behaviour "
+              "rather than the threshold value.",
+              "",
+              f"Brier score {cal['test_brier']['raw']:.3f} → {cal['test_brier']['calibrated']:.3f}. "
+              "Scores are relative probabilities over eight closed-set groups, not the "
+              "probability that a suggestion is clinically correct.",
+              "",
+              "| Calibrated confidence | Test rows | Mean confidence | Accuracy |",
+              "| --- | --- | --- | --- |"]
+    lines += [f"| {r['low']:.2f}–{r['high']:.2f} | {r['n']} | "
+              f"{'n/a' if r['mean_confidence'] is None else format(r['mean_confidence'], '.3f')} | "
+              f"{_pct(r['accuracy'])} |" for r in cal["reliability_test"]]
+    lines += ["", "| Specialty (true label) | Test rows | Marked uncertain | Accuracy when answered |",
+              "| --- | --- | --- | --- |"]
+    lines += [f"| {label} | {row['n']} | {_pct(row['abstention_rate'])} | "
+              f"{_pct(row['answered_accuracy'])} |"
+              for label, row in u["per_class_test"].items()]
+
+    parity = report.get("serving_parity")
+    if parity:
+        lines += ["", "## Training and serving parity", "",
+                  f"The served bundle was re-scored on CPU (fp32) and compared with the GPU (bf16) "
+                  f"evaluation on {parity['rows']} test rows, using the serving calibration.", "",
+                  "| Agreement | Value |", "| --- | --- |",
+                  f"| Top label | {_pct(parity['label_agreement'])} |",
+                  f"| Top-3 order | {_pct(parity['top3_order_agreement'])} |",
+                  f"| Uncertain flag | {_pct(parity['uncertain_agreement'])} |",
+                  f"| Largest probability difference | {parity['max_abs_probability_difference']:.3f} |",
+                  f"| CPU test macro F1 / accuracy | {parity['compared_macro_f1']:.3f} / "
+                  f"{_pct(parity['compared_accuracy'])} |"]
 
     if report["leakage"]:
         lines += [

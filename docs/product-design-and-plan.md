@@ -175,18 +175,20 @@ build labels.
 - The training environment (Python 3.13, GPU, bf16) differs from serving (Python 3.10,
   CPU, fp32).
 - Each export passes an offline CPU reload check against the trained logits.
-- The served model was re-scored on the full test set on CPU: 397 of 398 predictions
-  match the GPU evaluation (maximum logit difference 0.055). CPU test macro F1 is 0.886
-  versus 0.889 reported from GPU evaluation.
+- The served model was re-scored on the full test set on CPU and compared with the GPU
+  evaluation using the serving calibration: top label 99.7%, top-3 order 97.7%, and
+  uncertain flag 99.7% agree; the largest probability difference is 0.015. CPU test
+  macro F1 is 0.886 versus 0.889 from GPU evaluation.
 
 ## 8. Evaluation
 
 Full report: `reports/model_evaluation.md`. Test split of 398 descriptions never seen in
 training; 95% percentile bootstrap intervals with 2,000 resamples.
 
-**Scope of these results.** All numbers are an internal test: the same source, the same
-labeling rules, and one fixed split. The three seeds measure training randomness, not
-how results vary with different data. No external validation (another source,
+**Scope of these results.** All numbers are an internal test: the same source and the
+same labeling rules. Three training seeds measure optimiser randomness; six data splits
+measure dependence on which descriptions land in the test set. Neither shows how the
+model performs on other data. No external validation (another source,
 clinician-curated cases, or lay-language text) has been done.
 
 | Model | Test accuracy | Test macro F1 | Weighted F1 | Val macro F1 |
@@ -196,7 +198,13 @@ clinician-curated cases, or lay-language text) has been done.
 | PubMedBERT seed 1 | 0.892 [0.862, 0.920] | 0.895 [0.862, 0.924] | 0.892 | 0.874 |
 | PubMedBERT seed 2 | 0.889 [0.857, 0.920] | 0.892 [0.859, 0.921] | 0.888 | 0.870 |
 
-- **Seed variation:** macro F1 0.892 ± 0.003 (mean ± SD, 3 seeds).
+- **Seed variation:** macro F1 0.892 ± 0.003 (mean ± SD, 3 training seeds on one split).
+- **Split variation:** across six data splits (seeds 1–5 and 42), PubMedBERT macro F1 is
+  **0.876 ± 0.012** (0.858–0.889) and the baseline 0.761 ± 0.022; accuracy on directly
+  mapped rows is 0.839 ± 0.016 versus 0.700 ± 0.031. The served split (seed 42) is
+  PubMedBERT's best of the six, so 0.876 is the more representative estimate.
+  PubMedBERT beats the baseline on every split (mean +0.115, smallest +0.071)
+  (`reports/split_variation.md`).
 - **Versus baseline:** +0.148 macro F1 [+0.107, +0.192], one-sided paired bootstrap
   p < 0.001; exact McNemar test 69 vs. 13 discordant rows, p < 0.001.
 - **Per class (served model):** weakest are General Medicine (F1 0.795), Neurology
@@ -229,13 +237,32 @@ clinician-curated cases, or lay-language text) has been done.
 - Temperature scaling fitted on validation NLL: T = 0.95 (model was already close to
   calibrated). Test ECE 0.062 → 0.053; NLL 0.376 → 0.375.
 - Abstain threshold chosen on validation as the lowest confidence reaching 90% accuracy
-  on answered inputs: **0.65**. On test it answers 92.5% of inputs with 91.6% accuracy.
+  on answered inputs: **0.65**. On test it answers 92.5% [89.7%, 95.0%] of inputs with
+  91.6% [88.6%, 94.4%] accuracy.
+- **The threshold is not stable.** Re-choosing it on 1,000 bootstrap resamples of the
+  318 validation rows gives a 95% range of 0.00–0.71; at the low end the model would not
+  abstain at all. The release gate therefore checks the resulting test behaviour, not
+  the threshold value.
+- **Decision (2026-10-14): keep the 90% target and the 0.65 threshold.** Raising the
+  target would narrow the threshold range, but the alternatives were inspected on test
+  data, so choosing one now would bias the reported test figures. A new target needs a
+  product rationale and goes through change control
+  ([validation-and-operations.md §6](validation-and-operations.md#6-change-control-and-retraining)).
+- **Calibration is uneven across confidence bands.** Test rows scored 0.65–0.80 are
+  correct only 42.9% of the time (n = 28) and rows scored 0.80–0.90 79.3% (n = 29),
+  while rows at 0.95 or above are 98.7% correct (n = 223). Overall ECE hides this.
+  Temperature scaling barely changes anything (T = 0.95; Brier 0.174 → 0.175).
+- **Abstention is uneven across specialties.** Among answered test rows, accuracy is
+  77.1% for Gastroenterology and 81.8% for General Medicine, below the 90% target, but
+  above 96% for Cardiovascular & Pulmonary, ENT & Ophthalmology, OB-GYN, Orthopedics,
+  and Urology.
 - Both values are stored in `calibration.json` in the model bundle and read by the API.
 - Scores are relative probabilities over a closed set of eight groups, not the
   probability that a suggestion is clinically correct.
 - **`uncertain` does not detect out-of-scope input.** On 745 unique descriptions from
   the 16 excluded specialties, 90.5% received a confident label (68.7% scored ≥ 0.9) and
-  only 9.5% were marked uncertain, close to the 7.5% rate on in-scope test data. Some of
+  only 9.5% were marked uncertain, close to the 7.5% rate on in-scope test data
+  (`reports/release_validation.md`, "Excluded specialties"). Some of
   these labels are clinically plausible (Podiatry → Orthopedics), but the model cannot
   say that an input belongs to none of the eight groups. Vague input ("Follow-up
   visit.") behaves the same way.
@@ -385,11 +412,11 @@ redistributed.
   checks dependency compatibility; serves a tiny randomly initialised BERT bundle through
   every route; and builds the Docker image, checking the non-root user, `/health`, and
   `/ready`. CI does not need the dataset, a GPU, or the private model.
-- 99 tests cover API behaviour and status codes, input and body limits, model asset and
+- 101 tests cover API behaviour and status codes, input and body limits, model asset and
   calibration validation, offline loading contracts, prediction ranking and abstention,
   configuration and startup, privacy-safe logging and metrics, data pipeline invariants,
   baseline, statistics (checked against scikit-learn and known values), report
-  generation, release gate, and drift checks.
+  generation, split variation, release gate, and drift checks.
 - Not yet in CI: the release gate against the real model (it needs the private bundle),
   linting.
 - A repository ruleset protects `main`: changes must arrive through a pull request,
@@ -432,7 +459,8 @@ Not done: see §16 and §17.
 | No out-of-distribution detection | 90.5% of excluded-specialty inputs get a confident label | Measured and documented; no mitigation in product |
 | Training text is clinician-written summaries | Lay symptom descriptions may perform worse; not measured | Input assumption documented |
 | Ambiguous descriptions removed from test | Reported 0.89 does not cover inherently ambiguous cases | Abstention; leakage study shows 41% on conflicting cases |
-| Single fixed split; test set of 398; internal test only | Wide intervals (±0.03); no evidence of performance on other data | Bootstrap intervals and 3 seeds; external validation listed as not done |
+| Test set of 398; internal test only | Wide intervals (±0.03); the served split is the most favourable of six; no evidence of performance on other data | Bootstrap intervals, 3 training seeds, 6 data splits with the mean reported; external validation listed as not done |
+| Abstain threshold chosen on 318 validation rows | Threshold value is unstable; mid-confidence answers are often wrong | Stability and per-band analysis reported; gate checks test behaviour |
 | Row-level bootstrap assumes independent test rows | Intervals may be slightly narrow if templated descriptions cluster | Near-duplicate check (median similarity 0.39, 4.0% ≥ 0.8) suggests the effect is small |
 | Training may not have converged (best epoch = last) | Possible headroom left | Not explored |
 | Data license unspecified | Weights cannot be shared openly | Private repository; no public hosting |
@@ -467,7 +495,8 @@ A reviewer can:
 5. Run the service locally with a model bundle and get calibrated top-3 predictions.
 6. Inspect the API contract, tests, and CI results.
 
-The model meets the current bar when test macro F1 is at least 0.85, the 95% paired
+The model meets the current bar when test macro F1 is at least 0.85 (the lowest of six
+splits is 0.858), the 95% paired
 bootstrap interval for its macro F1 difference from the baseline lies above zero, every class has F1 of at least 0.75, and abstention
 keeps answered accuracy at or above 90%. The served model meets all three.
 
@@ -478,8 +507,9 @@ keeps answered accuracy at or above 90%. The served model meets all three.
    separate "ambiguous" evaluation set?
 2. Should excluded specialties (especially the 516 consultation notes) be handled, for
    example as an "Other" class, instead of being dropped?
-3. Is selecting the abstain threshold on 318 validation rows stable enough, or should it
-   use cross-validation?
+3. The abstain threshold is unstable on 318 validation rows (95% resample range
+   0.00–0.71). Should the target answered accuracy be raised (93% gives 0.64–0.83), or
+   should the threshold be chosen with cross-validation or a larger validation split?
 4. Is a 90% answered-accuracy target appropriate for a routing aid, and how should
    uncertain cases be handled in a real workflow?
 5. Without ground-truth labels, which additional signal would detect out-of-scope
