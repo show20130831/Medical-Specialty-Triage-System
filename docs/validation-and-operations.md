@@ -143,11 +143,18 @@ Alert names refer to the rules in `deploy/monitoring/alerts.yml`.
 
 ### Rollback
 
-1. Identify the previous bundle revision in the archive (or the previous local bundle).
-2. `hf download show20130831/medical-specialty-pubmedbert --revision <rev> --local-dir <dir>`
-3. Point `TRIAGE_MODEL_DIR` at it and restart the service.
-4. Confirm `GET /version` reports the expected `weights_sha256`.
-5. Re-run `validate-model` on the restored bundle and record the incident.
+Rehearsed in [drill D4](operations/drills/2026-10-15-d4-release-and-rollback.md).
+
+1. Identify the revision to restore in `deploy/current.json` or the archive history.
+2. **Stage first**, while the current version keeps serving:
+   `hf download show20130831/medical-specialty-pubmedbert --revision <rev> --local-dir models/<name>`
+   (about 75 s; not downtime). Check that `monitoring_reference.json` is present.
+3. Switch: `TRIAGE_MODEL_NAME=<name> docker compose up -d api`. Downtime is the model
+   load, 57–68 s in the drill, so it sits on the 60 s target.
+4. Confirm `GET /version` reports the expected `weights_sha256` and that drift leaves
+   "not evaluated" once a window completes.
+5. Update `deploy/current.json`, re-run `validate-model` on the restored bundle, and
+   record the incident.
 
 ## 6. Change Control and Retraining
 
