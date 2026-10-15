@@ -54,6 +54,9 @@ class MonitoringMetrics:
                                 ["route", "status_class"], registry=registry)
         self.duration = Histogram("triage_request_duration_seconds", "Request duration",
                                   ["route"], buckets=LATENCY_BUCKETS_SECONDS, registry=registry)
+        self.synthetic_requests = Counter("triage_synthetic_requests",
+                                          "Predictions marked synthetic, excluded from drift",
+                                          registry=registry)
         self.in_flight = Gauge("triage_requests_in_flight", "Requests being handled",
                                registry=registry)
         self.model_loaded = Gauge("triage_model_loaded", "1 when the model is loaded",

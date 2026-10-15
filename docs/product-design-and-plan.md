@@ -413,7 +413,7 @@ redistributed.
   checks dependency compatibility; serves a tiny randomly initialised BERT bundle through
   every route; and builds the Docker image, checking the non-root user, `/health`, and
   `/ready`. CI does not need the dataset, a GPU, or the private model.
-- 112 tests cover API behaviour and status codes, input and body limits, model asset and
+- 116 tests cover API behaviour and status codes, input and body limits, model asset and
   calibration validation, offline loading contracts, prediction ranking and abstention,
   configuration and startup, privacy-safe logging and metrics, data pipeline invariants,
   baseline, statistics (checked against scikit-learn and known values), report

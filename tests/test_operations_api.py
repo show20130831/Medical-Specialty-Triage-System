@@ -159,3 +159,16 @@ def test_concurrent_callers_load_the_model_once(monkeypatch):
     finally:
         api.reset_model_cache()
     assert len(calls) == 1
+
+
+def test_synthetic_traffic_is_served_but_kept_out_of_drift(served, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(api.DRIFT, "record", lambda *a: recorded.append(a))
+    before = _sample("triage_synthetic_requests_total")
+    with TestClient(api.app) as client:
+        marked = client.post("/predict", json={"description": "knee pain"},
+                             headers={"X-Synthetic-Traffic": "1"})
+        client.post("/predict", json={"description": "knee pain"})
+    assert marked.status_code == 200
+    assert len(recorded) == 1
+    assert _sample("triage_synthetic_requests_total") == before + 1

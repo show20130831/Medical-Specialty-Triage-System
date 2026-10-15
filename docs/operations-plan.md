@@ -143,6 +143,14 @@ cumulative per-specialty counts.
 | Latency | `histogram_quantile(0.95, rate(triage_request_duration_seconds_bucket{route="/predict"}[5m]))` | ≤ 500 ms at the capacity found in §9 |
 | Errors | 5xx share of `/predict` over 15 min | < 1% |
 
+**Measured ([reports/load_test.md](../reports/load_test.md)):** on the development laptop
+the latency target holds reliably for one concurrent client (p95 267–464 ms across
+runs, no errors). Two clients met it in three of five runs (p95 439–863 ms), so they sit
+on the threshold. Throughput saturated near 11–13 requests per second, and latency, not
+errors, failed first. Results varied between runs on the same machine, so they describe
+this laptop only. Model load including a warm-up inference took 27.9 s, within the
+readiness target.
+
 **Monitoring health (indicator, not an objective):** scrape success,
 `avg_over_time(up{job="triage-api"}[5m])`. With a 15-second interval there are 20
 scrapes in 5 minutes; at most one missed scrape (≥ 0.95) is treated as healthy. This
@@ -253,8 +261,8 @@ traffic, which the 24-hour timeout already handles.
 - **Payloads:** the 24 synthetic expected-label descriptions, and longer synthetic
   descriptions built by joining them up to the 1,000-character input limit. The joined
   texts are stress data, not realistic clinical notes. Because load depends on tokens,
-  not characters, the token count of every payload is recorded; the input limit caps
-  inputs at roughly 250 tokens.
+  not characters, the token count of every payload is recorded (short 10–18 tokens,
+  long 106–172 tokens).
 - **Scenarios:** steady load at 1, 2, 4, and 8 concurrent virtual users for 3 minutes
   each.
 - **Recorded:** throughput, p50, p95, and p99 latency, error rate, and CPU use per step.

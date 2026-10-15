@@ -1,0 +1,197 @@
+{
+ "note": "Synthetic stress payloads built from tests/golden/behavioural_cases.yaml; long texts are joined short cases, not realistic notes.",
+ "payloads": [
+  {
+   "description": "Coronary artery bypass grafting for three-vessel coronary artery disease.",
+   "kind": "short",
+   "chars": 73,
+   "tokens": 14
+  },
+  {
+   "description": "Echocardiogram showing reduced left ventricular ejection fraction.",
+   "kind": "short",
+   "chars": 66,
+   "tokens": 10
+  },
+  {
+   "description": "Bronchoscopy for evaluation of a right upper lobe lung nodule.",
+   "kind": "short",
+   "chars": 62,
+   "tokens": 13
+  },
+  {
+   "description": "Cataract extraction with intraocular lens implantation, left eye.",
+   "kind": "short",
+   "chars": 65,
+   "tokens": 12
+  },
+  {
+   "description": "Tonsillectomy and adenoidectomy for recurrent tonsillitis.",
+   "kind": "short",
+   "chars": 58,
+   "tokens": 17
+  },
+  {
+   "description": "Septoplasty for deviated nasal septum and nasal obstruction.",
+   "kind": "short",
+   "chars": 60,
+   "tokens": 13
+  },
+  {
+   "description": "Laparoscopic cholecystectomy for symptomatic cholelithiasis.",
+   "kind": "short",
+   "chars": 60,
+   "tokens": 11
+  },
+  {
+   "description": "Colonoscopy with polypectomy of a sigmoid colon polyp.",
+   "kind": "short",
+   "chars": 54,
+   "tokens": 12
+  },
+  {
+   "description": "Esophagogastroduodenoscopy for evaluation of epigastric pain and reflux.",
+   "kind": "short",
+   "chars": 72,
+   "tokens": 18
+  },
+  {
+   "description": "Follow-up of type 2 diabetes mellitus and essential hypertension.",
+   "kind": "short",
+   "chars": 65,
+   "tokens": 14
+  },
+  {
+   "description": "Annual physical examination with review of chronic medications.",
+   "kind": "short",
+   "chars": 63,
+   "tokens": 11
+  },
+  {
+   "description": "Management of hypothyroidism with adjustment of levothyroxine dose.",
+   "kind": "short",
+   "chars": 67,
+   "tokens": 14
+  },
+  {
+   "description": "Electroencephalogram for evaluation of new-onset seizures.",
+   "kind": "short",
+   "chars": 58,
+   "tokens": 12
+  },
+  {
+   "description": "Right frontal craniotomy for resection of a brain tumor.",
+   "kind": "short",
+   "chars": 56,
+   "tokens": 14
+  },
+  {
+   "description": "Evaluation of progressive memory loss and suspected dementia.",
+   "kind": "short",
+   "chars": 61,
+   "tokens": 11
+  },
+  {
+   "description": "Low transverse cesarean section for arrest of labor.",
+   "kind": "short",
+   "chars": 52,
+   "tokens": 11
+  },
+  {
+   "description": "Total abdominal hysterectomy for symptomatic uterine fibroids.",
+   "kind": "short",
+   "chars": 62,
+   "tokens": 11
+  },
+  {
+   "description": "Routine prenatal visit at 28 weeks gestation.",
+   "kind": "short",
+   "chars": 45,
+   "tokens": 10
+  },
+  {
+   "description": "Right total knee arthroplasty for severe osteoarthritis.",
+   "kind": "short",
+   "chars": 56,
+   "tokens": 10
+  },
+  {
+   "description": "Arthroscopic rotator cuff repair of the left shoulder.",
+   "kind": "short",
+   "chars": 54,
+   "tokens": 11
+  },
+  {
+   "description": "Open reduction and internal fixation of a distal radius fracture.",
+   "kind": "short",
+   "chars": 65,
+   "tokens": 13
+  },
+  {
+   "description": "Transurethral resection of the prostate for benign prostatic hyperplasia.",
+   "kind": "short",
+   "chars": 73,
+   "tokens": 14
+  },
+  {
+   "description": "Cystoscopy for evaluation of painless gross hematuria.",
+   "kind": "short",
+   "chars": 54,
+   "tokens": 12
+  },
+  {
+   "description": "Ureteroscopy and laser lithotripsy of a left ureteral stone.",
+   "kind": "short",
+   "chars": 60,
+   "tokens": 15
+  },
+  {
+   "description": "Coronary artery bypass grafting for three-vessel coronary artery disease. Echocardiogram showing reduced left ventricular ejection fraction. Bronchoscopy for evaluation of a right upper lobe lung nodule. Cataract extraction with intraocular lens implantation, left eye. Tonsillectomy and adenoidectomy for recurrent tonsillitis. Septoplasty for deviated nasal septum and nasal obstruction. Laparoscopic cholecystectomy for symptomatic cholelithiasis. Colonoscopy with polypectomy of a sigmoid colon polyp. Esophagogastroduodenoscopy for evaluation of epigastric pain and reflux. Follow-up of type 2 diabetes mellitus and essential hypertension.",
+   "kind": "long",
+   "chars": 644,
+   "tokens": 116
+  },
+  {
+   "description": "Cataract extraction with intraocular lens implantation, left eye. Tonsillectomy and adenoidectomy for recurrent tonsillitis. Septoplasty for deviated nasal septum and nasal obstruction. Laparoscopic cholecystectomy for symptomatic cholelithiasis. Colonoscopy with polypectomy of a sigmoid colon polyp. Esophagogastroduodenoscopy for evaluation of epigastric pain and reflux. Follow-up of type 2 diabetes mellitus and essential hypertension. Annual physical examination with review of chronic medications. Management of hypothyroidism with adjustment of levothyroxine dose. Electroencephalogram for evaluation of new-onset seizures. Right frontal craniotomy for resection of a brain tumor. Evaluation of progressive memory loss and suspected dementia. Low transverse cesarean section for arrest of labor. Total abdominal hysterectomy for symptomatic uterine fibroids. Routine prenatal visit at 28 weeks gestation. Right total knee arthroplasty for severe osteoarthritis.",
+   "kind": "long",
+   "chars": 969,
+   "tokens": 171
+  },
+  {
+   "description": "Laparoscopic cholecystectomy for symptomatic cholelithiasis. Colonoscopy with polypectomy of a sigmoid colon polyp. Esophagogastroduodenoscopy for evaluation of epigastric pain and reflux. Follow-up of type 2 diabetes mellitus and essential hypertension. Annual physical examination with review of chronic medications. Management of hypothyroidism with adjustment of levothyroxine dose. Electroencephalogram for evaluation of new-onset seizures. Right frontal craniotomy for resection of a brain tumor. Evaluation of progressive memory loss and suspected dementia. Low transverse cesarean section for arrest of labor.",
+   "kind": "long",
+   "chars": 617,
+   "tokens": 110
+  },
+  {
+   "description": "Follow-up of type 2 diabetes mellitus and essential hypertension. Annual physical examination with review of chronic medications. Management of hypothyroidism with adjustment of levothyroxine dose. Electroencephalogram for evaluation of new-onset seizures. Right frontal craniotomy for resection of a brain tumor. Evaluation of progressive memory loss and suspected dementia. Low transverse cesarean section for arrest of labor. Total abdominal hysterectomy for symptomatic uterine fibroids. Routine prenatal visit at 28 weeks gestation. Right total knee arthroplasty for severe osteoarthritis. Arthroscopic rotator cuff repair of the left shoulder. Open reduction and internal fixation of a distal radius fracture. Transurethral resection of the prostate for benign prostatic hyperplasia. Cystoscopy for evaluation of painless gross hematuria. Ureteroscopy and laser lithotripsy of a left ureteral stone. Coronary artery bypass grafting for three-vessel coronary artery disease.",
+   "kind": "long",
+   "chars": 979,
+   "tokens": 167
+  },
+  {
+   "description": "Electroencephalogram for evaluation of new-onset seizures. Right frontal craniotomy for resection of a brain tumor. Evaluation of progressive memory loss and suspected dementia. Low transverse cesarean section for arrest of labor. Total abdominal hysterectomy for symptomatic uterine fibroids. Routine prenatal visit at 28 weeks gestation. Right total knee arthroplasty for severe osteoarthritis. Arthroscopic rotator cuff repair of the left shoulder. Open reduction and internal fixation of a distal radius fracture. Transurethral resection of the prostate for benign prostatic hyperplasia. Cystoscopy for evaluation of painless gross hematuria.",
+   "kind": "long",
+   "chars": 646,
+   "tokens": 109
+  },
+  {
+   "description": "Low transverse cesarean section for arrest of labor. Total abdominal hysterectomy for symptomatic uterine fibroids. Routine prenatal visit at 28 weeks gestation. Right total knee arthroplasty for severe osteoarthritis. Arthroscopic rotator cuff repair of the left shoulder. Open reduction and internal fixation of a distal radius fracture. Transurethral resection of the prostate for benign prostatic hyperplasia. Cystoscopy for evaluation of painless gross hematuria. Ureteroscopy and laser lithotripsy of a left ureteral stone. Coronary artery bypass grafting for three-vessel coronary artery disease. Echocardiogram showing reduced left ventricular ejection fraction. Bronchoscopy for evaluation of a right upper lobe lung nodule. Cataract extraction with intraocular lens implantation, left eye. Tonsillectomy and adenoidectomy for recurrent tonsillitis. Septoplasty for deviated nasal septum and nasal obstruction. Laparoscopic cholecystectomy for symptomatic cholelithiasis.",
+   "kind": "long",
+   "chars": 980,
+   "tokens": 167
+  },
+  {
+   "description": "Right total knee arthroplasty for severe osteoarthritis. Arthroscopic rotator cuff repair of the left shoulder. Open reduction and internal fixation of a distal radius fracture. Transurethral resection of the prostate for benign prostatic hyperplasia. Cystoscopy for evaluation of painless gross hematuria. Ureteroscopy and laser lithotripsy of a left ureteral stone. Coronary artery bypass grafting for three-vessel coronary artery disease. Echocardiogram showing reduced left ventricular ejection fraction. Bronchoscopy for evaluation of a right upper lobe lung nodule. Cataract extraction with intraocular lens implantation, left eye.",
+   "kind": "long",
+   "chars": 637,
+   "tokens": 106
+  },
+  {
+   "description": "Transurethral resection of the prostate for benign prostatic hyperplasia. Cystoscopy for evaluation of painless gross hematuria. Ureteroscopy and laser lithotripsy of a left ureteral stone. Coronary artery bypass grafting for three-vessel coronary artery disease. Echocardiogram showing reduced left ventricular ejection fraction. Bronchoscopy for evaluation of a right upper lobe lung nodule. Cataract extraction with intraocular lens implantation, left eye. Tonsillectomy and adenoidectomy for recurrent tonsillitis. Septoplasty for deviated nasal septum and nasal obstruction. Laparoscopic cholecystectomy for symptomatic cholelithiasis. Colonoscopy with polypectomy of a sigmoid colon polyp. Esophagogastroduodenoscopy for evaluation of epigastric pain and reflux. Follow-up of type 2 diabetes mellitus and essential hypertension. Annual physical examination with review of chronic medications. Management of hypothyroidism with adjustment of levothyroxine dose.",
+   "kind": "long",
+   "chars": 966,
+   "tokens": 172
+  }
+ ]
+}
