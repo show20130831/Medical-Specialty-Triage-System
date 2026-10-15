@@ -10,8 +10,12 @@ next_id = [1]
 def panel(kind, title, targets, x, y, w, h, **extra):
     p = {"id": next_id[0], "type": kind, "title": title, "datasource": DS,
          "gridPos": {"x": x, "y": y, "w": w, "h": h},
-         "targets": [{"datasource": DS, "refId": chr(65 + i), "expr": e, "legendFormat": l}
+         "targets": [{"datasource": DS, "refId": chr(65 + i), "expr": e, "legendFormat": l,
+                      "instant": kind == "stat", "range": kind != "stat"}
                      for i, (e, l) in enumerate(targets)]}
+    if kind == "stat":
+        # Stat panels show the current value only, never a history sparkline.
+        extra.setdefault("options", {})["graphMode"] = "none"
     p.update(extra)
     next_id[0] += 1
     panels.append(p)
@@ -38,7 +42,8 @@ panel("stat", "Model load duration", [("triage_model_load_duration_seconds", "")
           (None, "green"), (60, "red"))}, "overrides": []},
       options={"colorMode": "value", "reduceOptions": {"calcs": ["lastNotNull"]}})
 panel("stat", "Served weights (SHA-256) and training commit",
-      [("triage_model_info", "{{weights_sha256}} · {{training_commit}}")], 12, 1, 12, 4,
+      [('label_replace(label_replace(triage_model_info, "w", "$1", "weights_sha256", "(.{12}).*"), "c", "$1", "training_commit", "(.{7}).*")',
+        "weights {{w}} · commit {{c}}")], 12, 1, 12, 4,
       options={"textMode": "name", "colorMode": "none",
                "reduceOptions": {"calcs": ["lastNotNull"]}})
 panel("timeseries", "/predict requests per second by status class",
@@ -51,7 +56,7 @@ panel("timeseries", "/predict latency",
           "thresholdsStyle": {"mode": "line"}}, "thresholds": thresholds((None, "green"), (0.5, "red"))},
           "overrides": []})
 panel("timeseries", "5xx share of /predict (5 min)",
-      [('sum(increase(triage_requests_total{route="/predict", status_class="5xx"}[5m])) / sum(increase(triage_requests_total{route="/predict"}[5m]))', "5xx share")],
+      [('(sum(increase(triage_requests_total{route="/predict", status_class="5xx"}[5m])) or vector(0)) / sum(increase(triage_requests_total{route="/predict"}[5m]))', "5xx share")],
       0, 13, 12, 7, fieldConfig={"defaults": {"unit": "percentunit", "custom": {
           "thresholdsStyle": {"mode": "line"}}, "thresholds": thresholds(
           (None, "green"), (0.01, "orange"), (0.05, "red"))}, "overrides": []})

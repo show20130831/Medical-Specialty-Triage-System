@@ -3,7 +3,6 @@ import logging
 import threading
 import time
 from contextlib import asynccontextmanager
-from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
@@ -14,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from triage_system.config import load_settings
 from triage_system.logging_config import log_request
+from triage_system.model_assets import ModelAssetError
 from triage_system.model_loader import LoadedModel, ModelLoadError, load_local_model
 from triage_system.monitoring import DriftMonitor, DriftThresholds, MonitoringMetrics
 from triage_system.predictor import PredictionError, predict_description
@@ -141,12 +141,36 @@ class PredictResponse(BaseModel):
     top: list[SpecialtyScore] = Field(description="Three highest scoring specialties.")
 
 
-@lru_cache(maxsize=1)
+_MODEL_LOCK = threading.Lock()
+_MODEL: LoadedModel | None = None
+
+
 def _loaded_model() -> LoadedModel:
+    """Load the model once; concurrent callers (preload and a request) wait, not reload."""
+    global _MODEL
+    if _MODEL is None:
+        with _MODEL_LOCK:
+            if _MODEL is None:
+                _MODEL = _load_model()
+    return _MODEL
+
+
+def reset_model_cache() -> None:
+    """Forget the loaded model so the next call reloads it (tests and reconfiguration)."""
+    global _MODEL
+    with _MODEL_LOCK:
+        _MODEL = None
+
+
+def _load_model() -> LoadedModel:
     model_dir = load_settings().model_dir
     if not model_dir:
         raise ModelLoadError("TRIAGE_MODEL_DIR must point to a local model export.")
-    loaded = load_local_model(model_dir)
+    try:
+        loaded = load_local_model(model_dir)
+    except ModelAssetError as exc:
+        # A missing or invalid bundle means the model is unavailable (503), not a bug (500).
+        raise ModelLoadError(str(exc)) from None
     _on_model_loaded(loaded)
     return loaded
 

@@ -7,7 +7,8 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     environment:
-      TRIAGE_MODEL_DIR: /models/pubmedbert_description
+      # The deployed bundle under ./models; drills and rollback switch it with TRIAGE_MODEL_NAME.
+      TRIAGE_MODEL_DIR: /models/${TRIAGE_MODEL_NAME:-pubmedbert_description}
       TRIAGE_HOST: 0.0.0.0
       TRIAGE_PORT: 8000
       TRIAGE_PRELOAD: "true"

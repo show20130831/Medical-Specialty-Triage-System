@@ -20,7 +20,9 @@ from dataclasses import dataclass, field
 from math import log
 from pathlib import Path
 
-from prometheus_client import CollectorRegistry, Counter, Enum, Gauge, Histogram
+from prometheus_client import (
+    CollectorRegistry, Counter, Enum, Gauge, Histogram, ProcessCollector,
+)
 
 SCORE_EDGES = (0.5, 0.65, 0.8, 0.9)          # buckets: <0.5, 0.5-0.65, ..., >=0.9
 LENGTH_EDGES = (50, 100, 200, 400)            # characters
@@ -46,6 +48,8 @@ class MonitoringMetrics:
 
     def __init__(self) -> None:
         self.registry = registry = CollectorRegistry()
+        # Process start time marks restarts on the dashboard (Linux only; empty elsewhere).
+        ProcessCollector(registry=registry)
         self.requests = Counter("triage_requests", "HTTP requests by route and status class",
                                 ["route", "status_class"], registry=registry)
         self.duration = Histogram("triage_request_duration_seconds", "Request duration",
@@ -87,6 +91,9 @@ class MonitoringMetrics:
                                      "Windows dropped by a failure or a full queue",
                                      registry=registry)
         self.drift_state.state("not_evaluated")
+        # No window has completed yet: NaN shows as a gap, never as a misleading 0.
+        self.drift_uncertain_rate.set(float("nan"))
+        self.drift_window_size.set(float("nan"))
 
 
 @dataclass(frozen=True)

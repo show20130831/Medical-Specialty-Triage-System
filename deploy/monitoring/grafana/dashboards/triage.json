@@ -64,7 +64,9 @@
           },
           "refId": "A",
           "expr": "triage_model_loaded",
-          "legendFormat": ""
+          "legendFormat": "",
+          "instant": true,
+          "range": false
         }
       ],
       "fieldConfig": {
@@ -94,7 +96,8 @@
           "calcs": [
             "lastNotNull"
           ]
-        }
+        },
+        "graphMode": "none"
       }
     },
     {
@@ -119,7 +122,9 @@
           },
           "refId": "A",
           "expr": "triage_model_load_duration_seconds",
-          "legendFormat": ""
+          "legendFormat": "",
+          "instant": true,
+          "range": false
         }
       ],
       "fieldConfig": {
@@ -147,7 +152,8 @@
           "calcs": [
             "lastNotNull"
           ]
-        }
+        },
+        "graphMode": "none"
       }
     },
     {
@@ -171,8 +177,10 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "triage_model_info",
-          "legendFormat": "{{weights_sha256}} \u00b7 {{training_commit}}"
+          "expr": "label_replace(label_replace(triage_model_info, \"w\", \"$1\", \"weights_sha256\", \"(.{12}).*\"), \"c\", \"$1\", \"training_commit\", \"(.{7}).*\")",
+          "legendFormat": "weights {{w}} \u00b7 commit {{c}}",
+          "instant": true,
+          "range": false
         }
       ],
       "options": {
@@ -182,7 +190,8 @@
           "calcs": [
             "lastNotNull"
           ]
-        }
+        },
+        "graphMode": "none"
       }
     },
     {
@@ -207,7 +216,9 @@
           },
           "refId": "A",
           "expr": "sum by (status_class) (rate(triage_requests_total{route=\"/predict\"}[1m]))",
-          "legendFormat": "{{status_class}}"
+          "legendFormat": "{{status_class}}",
+          "instant": false,
+          "range": true
         }
       ],
       "fieldConfig": {
@@ -239,7 +250,9 @@
           },
           "refId": "A",
           "expr": "histogram_quantile(0.5, sum by (le) (rate(triage_request_duration_seconds_bucket{route=\"/predict\"}[5m])))",
-          "legendFormat": "p50"
+          "legendFormat": "p50",
+          "instant": false,
+          "range": true
         },
         {
           "datasource": {
@@ -248,7 +261,9 @@
           },
           "refId": "B",
           "expr": "histogram_quantile(0.95, sum by (le) (rate(triage_request_duration_seconds_bucket{route=\"/predict\"}[5m])))",
-          "legendFormat": "p95"
+          "legendFormat": "p95",
+          "instant": false,
+          "range": true
         }
       ],
       "fieldConfig": {
@@ -297,8 +312,10 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "sum(increase(triage_requests_total{route=\"/predict\", status_class=\"5xx\"}[5m])) / sum(increase(triage_requests_total{route=\"/predict\"}[5m]))",
-          "legendFormat": "5xx share"
+          "expr": "(sum(increase(triage_requests_total{route=\"/predict\", status_class=\"5xx\"}[5m])) or vector(0)) / sum(increase(triage_requests_total{route=\"/predict\"}[5m]))",
+          "legendFormat": "5xx share",
+          "instant": false,
+          "range": true
         }
       ],
       "fieldConfig": {
@@ -352,7 +369,9 @@
           },
           "refId": "A",
           "expr": "triage_requests_in_flight",
-          "legendFormat": "in flight"
+          "legendFormat": "in flight",
+          "instant": false,
+          "range": true
         }
       ]
     },
@@ -391,7 +410,9 @@
           },
           "refId": "A",
           "expr": "triage_drift == 1",
-          "legendFormat": "{{triage_drift}}"
+          "legendFormat": "{{triage_drift}}",
+          "instant": true,
+          "range": false
         }
       ],
       "description": "'not_evaluated' means no window has completed since the API started; it does not mean there is no problem.",
@@ -408,7 +429,8 @@
           "calcs": [
             "lastNotNull"
           ]
-        }
+        },
+        "graphMode": "none"
       }
     },
     {
@@ -433,7 +455,9 @@
           },
           "refId": "A",
           "expr": "(time() - triage_drift_last_result_timestamp_seconds) / 60 and triage_drift_last_result_timestamp_seconds > 0",
-          "legendFormat": ""
+          "legendFormat": "",
+          "instant": true,
+          "range": false
         }
       ],
       "fieldConfig": {
@@ -450,7 +474,8 @@
           "calcs": [
             "lastNotNull"
           ]
-        }
+        },
+        "graphMode": "none"
       }
     },
     {
@@ -475,7 +500,9 @@
           },
           "refId": "A",
           "expr": "(time() - triage_drift_heartbeat_timestamp_seconds) / 60",
-          "legendFormat": ""
+          "legendFormat": "",
+          "instant": true,
+          "range": false
         }
       ],
       "fieldConfig": {
@@ -491,7 +518,8 @@
           "calcs": [
             "lastNotNull"
           ]
-        }
+        },
+        "graphMode": "none"
       }
     },
     {
@@ -516,7 +544,9 @@
           },
           "refId": "A",
           "expr": "triage_drift_psi",
-          "legendFormat": "{{check}}"
+          "legendFormat": "{{check}}",
+          "instant": false,
+          "range": true
         }
       ],
       "fieldConfig": {
@@ -569,7 +599,9 @@
           },
           "refId": "A",
           "expr": "triage_drift_uncertain_rate",
-          "legendFormat": "uncertain rate"
+          "legendFormat": "uncertain rate",
+          "instant": false,
+          "range": true
         }
       ],
       "fieldConfig": {
