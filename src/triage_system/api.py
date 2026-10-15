@@ -3,17 +3,17 @@ import logging
 import threading
 import time
 from contextlib import asynccontextmanager
-from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field, field_validator
 
 from triage_system.config import load_settings
 from triage_system.logging_config import log_request
+from triage_system.model_assets import ModelAssetError
 from triage_system.model_loader import LoadedModel, ModelLoadError, load_local_model
 from triage_system.monitoring import DriftMonitor, DriftThresholds, MonitoringMetrics
 from triage_system.predictor import PredictionError, predict_description
@@ -25,6 +25,8 @@ MAX_DESCRIPTION_CHARS = 1_000
 # Rejects oversized bodies before JSON parsing; a maximal valid request is far smaller.
 MAX_BODY_BYTES = 16_384
 WEB_ROOT = Path(__file__).with_name("web")
+# Synthetic text for one warm-up inference after loading; never counted in drift windows.
+WARMUP_TEXT = "Right knee pain and swelling after a twisting injury."
 # Fixed route names keep metric labels bounded; anything else is counted as "other".
 ROUTES = {"/", "/health", "/ready", "/version", "/metrics", "/predict", "/docs",
           "/openapi.json"}
@@ -141,12 +143,42 @@ class PredictResponse(BaseModel):
     top: list[SpecialtyScore] = Field(description="Three highest scoring specialties.")
 
 
-@lru_cache(maxsize=1)
+_MODEL_LOCK = threading.Lock()
+_MODEL: LoadedModel | None = None
+
+
 def _loaded_model() -> LoadedModel:
+    """Load the model once; concurrent callers (preload and a request) wait, not reload."""
+    global _MODEL
+    if _MODEL is None:
+        with _MODEL_LOCK:
+            if _MODEL is None:
+                _MODEL = _load_model()
+    return _MODEL
+
+
+def reset_model_cache() -> None:
+    """Forget the loaded model so the next call reloads it (tests and reconfiguration)."""
+    global _MODEL
+    with _MODEL_LOCK:
+        _MODEL = None
+
+
+def _load_model() -> LoadedModel:
     model_dir = load_settings().model_dir
     if not model_dir:
         raise ModelLoadError("TRIAGE_MODEL_DIR must point to a local model export.")
-    loaded = load_local_model(model_dir)
+    try:
+        loaded = load_local_model(model_dir)
+    except ModelAssetError as exc:
+        # A missing or invalid bundle means the model is unavailable (503), not a bug (500).
+        raise ModelLoadError(str(exc)) from None
+    # The first inference after loading is several times slower than the rest (about
+    # 6 s on CPU); run it here so the model counts as loaded only once it is warm.
+    try:
+        predict_description(loaded, WARMUP_TEXT)
+    except PredictionError as exc:
+        logger.warning("Warm-up inference failed: %s", exc)
     _on_model_loaded(loaded)
     return loaded
 
@@ -205,15 +237,25 @@ def metrics() -> Response:
 
 
 @app.post("/predict", response_model=PredictResponse)
-def predict(request: PredictRequest) -> PredictResponse:
-    """Classify one medical description with the local model."""
+def predict(request: PredictRequest,
+            x_synthetic_traffic: str | None = Header(default=None)) -> PredictResponse:
+    """Classify one medical description with the local model.
+
+    Requests marked `X-Synthetic-Traffic: 1` (load tests, probes) are served normally but
+    kept out of drift windows, so test traffic cannot raise or mask drift. Any client can
+    set the header here; a production deployment would accept it only from internal
+    callers.
+    """
     try:
         result = predict_description(_loaded_model(), request.description)
     except ModelLoadError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from None
     except PredictionError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from None
-    DRIFT.record(result.label, result.score, result.uncertain, len(request.description))
+    if x_synthetic_traffic == "1":
+        METRICS.synthetic_requests.inc()
+    else:
+        DRIFT.record(result.label, result.score, result.uncertain, len(request.description))
     return PredictResponse(
         label=result.label, score=result.score, uncertain=result.uncertain,
         top=[SpecialtyScore(label=label, score=score) for label, score in result.top],

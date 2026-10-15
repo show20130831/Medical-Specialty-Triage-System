@@ -40,9 +40,9 @@ def tiny_bundle(tmp_path, monkeypatch):
     (tmp_path / "calibration.json").write_text(
         json.dumps({"temperature": 1.0, "uncertain_threshold": 0.65}), encoding="utf-8")
     monkeypatch.setenv("TRIAGE_MODEL_DIR", str(tmp_path))
-    api._loaded_model.cache_clear()
+    api.reset_model_cache()
     yield tmp_path
-    api._loaded_model.cache_clear()
+    api.reset_model_cache()
 
 
 def test_service_serves_a_real_bundle_end_to_end(tiny_bundle):

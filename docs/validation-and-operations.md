@@ -126,14 +126,19 @@ Drift drills replace the earlier manual demonstration; their records are in
 
 ## 5. Response Runbook
 
-| Event | First action | Then |
+Alert names refer to the rules in `deploy/monitoring/alerts.yml`.
+
+| Event (alert) | First action | Then |
 | --- | --- | --- |
-| `/health` fails | Restart the container; check logs | If repeated, roll back the image |
-| `/ready` returns 503 | Read the reason; check `TRIAGE_MODEL_DIR`, files, and memory | Restore the bundle from the archive |
-| Server error rate WARN or ALERT | Check logs for the failing step | Roll back image or bundle if errors began with a release |
-| Drift WARN | Compare the window with recent changes in who uses the service | Review a sample of inputs with the data owner, if permitted |
-| Drift ALERT | Consider pausing use for affected inputs | Decide between rollback, retraining (§6), or narrowing the documented scope |
-| Latency over 500 ms p95 | Check CPU load and concurrent requests | Add capacity; the model runs one process on CPU |
+| `/health` fails (`TriageApiDown`) | Restart the container; check logs | If repeated, roll back the image |
+| `/ready` returns 503 (`TriageModelNotLoaded`) | Read the reason in the log; check `TRIAGE_MODEL_DIR`, files, and memory | Restore the bundle from the archive |
+| Server error rate (`TriageServerErrorsWarning`, `TriageServerErrorsCritical`) | Check logs for the failing step | Roll back image or bundle if errors began with a release |
+| Drift WARN (`TriageDriftWarning`) | Read which checks failed in the alert; compare with recent changes in who uses the service | Review a sample of inputs with the data owner, if permitted |
+| Drift ALERT (`TriageDriftAlert`) | Consider pausing use for affected inputs | Decide between rollback, retraining (§6), or narrowing the documented scope |
+| Latency over 500 ms p95 (`TriageHighLatency`) | Check CPU load and concurrent requests | Add capacity; the model runs one process on CPU |
+| Drift evaluator stale (`TriageDriftEvaluatorStale`) | Check the log for evaluator errors; restart the API | Drift status returns to "not evaluated"; confirm the heartbeat moves again |
+| Drift evaluation failed (`TriageDriftEvaluationFailed`) | Read the logged exception (it contains no window contents) | Fix the cause; dropped windows are lost and are not re-evaluated |
+| Monitoring stack down (Prometheus, Alertmanager, or Grafana unreachable) | `docker compose --profile monitoring ps`; restart the failed service | Alerts may have been missed meanwhile; check the dashboard history |
 | Release gate fails | Do not deploy | Fix the cause; never relax criteria to make a bundle pass |
 
 ### Rollback

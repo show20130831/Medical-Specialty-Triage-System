@@ -20,7 +20,9 @@ from dataclasses import dataclass, field
 from math import log
 from pathlib import Path
 
-from prometheus_client import CollectorRegistry, Counter, Enum, Gauge, Histogram
+from prometheus_client import (
+    CollectorRegistry, Counter, Enum, Gauge, Histogram, ProcessCollector,
+)
 
 SCORE_EDGES = (0.5, 0.65, 0.8, 0.9)          # buckets: <0.5, 0.5-0.65, ..., >=0.9
 LENGTH_EDGES = (50, 100, 200, 400)            # characters
@@ -46,10 +48,15 @@ class MonitoringMetrics:
 
     def __init__(self) -> None:
         self.registry = registry = CollectorRegistry()
+        # Process start time marks restarts on the dashboard (Linux only; empty elsewhere).
+        ProcessCollector(registry=registry)
         self.requests = Counter("triage_requests", "HTTP requests by route and status class",
                                 ["route", "status_class"], registry=registry)
         self.duration = Histogram("triage_request_duration_seconds", "Request duration",
                                   ["route"], buckets=LATENCY_BUCKETS_SECONDS, registry=registry)
+        self.synthetic_requests = Counter("triage_synthetic_requests",
+                                          "Predictions marked synthetic, excluded from drift",
+                                          registry=registry)
         self.in_flight = Gauge("triage_requests_in_flight", "Requests being handled",
                                registry=registry)
         self.model_loaded = Gauge("triage_model_loaded", "1 when the model is loaded",
@@ -75,6 +82,9 @@ class MonitoringMetrics:
         self.drift_heartbeat = Gauge("triage_drift_heartbeat_timestamp_seconds",
                                      "When the evaluator last completed a run",
                                      registry=registry)
+        self.drift_interval = Gauge("triage_drift_evaluation_interval_seconds",
+                                    "Evaluator interval, so alert rules can judge staleness",
+                                    registry=registry)
         self.drift_windows = Counter("triage_drift_windows", "Closed windows by result",
                                      ["result"], registry=registry)
         self.drift_failures = Counter("triage_drift_evaluation_failures",
@@ -84,6 +94,9 @@ class MonitoringMetrics:
                                      "Windows dropped by a failure or a full queue",
                                      registry=registry)
         self.drift_state.state("not_evaluated")
+        # No window has completed yet: NaN shows as a gap, never as a misleading 0.
+        self.drift_uncertain_rate.set(float("nan"))
+        self.drift_window_size.set(float("nan"))
 
 
 @dataclass(frozen=True)
@@ -164,6 +177,7 @@ class DriftMonitor:
                  clock=time.time) -> None:
         self.metrics = metrics
         self.thresholds = thresholds
+        metrics.drift_interval.set(thresholds.interval_seconds)
         self._clock = clock
         self._lock = threading.Lock()
         self._reference: dict | None = None

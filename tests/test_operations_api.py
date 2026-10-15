@@ -117,3 +117,58 @@ def test_body_without_length_is_rejected():
         response = client.post("/predict", content=chunks(),
                                headers={"content-type": "application/json"})
     assert response.status_code == 411
+
+
+def test_missing_bundle_directory_is_unavailable_not_an_error(monkeypatch, tmp_path):
+    """Found by drill D1: an absent bundle returned 500 because ModelAssetError escaped."""
+    monkeypatch.setenv("TRIAGE_MODEL_DIR", str(tmp_path / "missing_bundle"))
+    api.reset_model_cache()
+    api.METRICS.model_loaded.set(0)
+    try:
+        api._preload()
+        with TestClient(api.app) as client:
+            assert client.get("/health").status_code == 200
+            assert client.get("/ready").status_code == 503
+            response = client.post("/predict", json={"description": "knee pain"})
+    finally:
+        api.reset_model_cache()
+    assert response.status_code == 503
+    assert _sample("triage_model_loaded") == 0
+
+
+def test_concurrent_callers_load_the_model_once(monkeypatch):
+    """Preload and an early request must not load the model twice."""
+    import threading
+    import time
+
+    calls = []
+
+    def slow_load():
+        calls.append(1)
+        time.sleep(0.2)
+        return object()
+
+    api.reset_model_cache()
+    monkeypatch.setattr(api, "_load_model", slow_load)
+    try:
+        threads = [threading.Thread(target=api._loaded_model) for _ in range(5)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+    finally:
+        api.reset_model_cache()
+    assert len(calls) == 1
+
+
+def test_synthetic_traffic_is_served_but_kept_out_of_drift(served, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(api.DRIFT, "record", lambda *a: recorded.append(a))
+    before = _sample("triage_synthetic_requests_total")
+    with TestClient(api.app) as client:
+        marked = client.post("/predict", json={"description": "knee pain"},
+                             headers={"X-Synthetic-Traffic": "1"})
+        client.post("/predict", json={"description": "knee pain"})
+    assert marked.status_code == 200
+    assert len(recorded) == 1
+    assert _sample("triage_synthetic_requests_total") == before + 1

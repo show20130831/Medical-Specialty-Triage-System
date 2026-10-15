@@ -1,8 +1,9 @@
 # Operations Plan
 
 **Last updated:** 2026-10-15
-**Status:** Approved for implementation after three external reviews; implementation in
-progress. Until it is, [Validation and Operations](validation-and-operations.md)
+**Status:** Approved after three external reviews. M1–M5, M7, and M8 are implemented and
+drilled (2026-10-15); M6, the release and rollback drill, waits for the candidate model.
+See §13 for the status of each item. Until it is, [Validation and Operations](validation-and-operations.md)
 and the README describe the system as it runs today (JSON `/metrics`, manual
 `monitor-drift`); the implementing pull request updates them together.
 **Related:** [Product Design and Delivery Plan](product-design-and-plan.md) ·
@@ -143,6 +144,14 @@ cumulative per-specialty counts.
 | Latency | `histogram_quantile(0.95, rate(triage_request_duration_seconds_bucket{route="/predict"}[5m]))` | ≤ 500 ms at the capacity found in §9 |
 | Errors | 5xx share of `/predict` over 15 min | < 1% |
 
+**Measured ([reports/load_test.md](../reports/load_test.md)):** on the development laptop
+the latency target holds reliably for one concurrent client (p95 267–464 ms across
+runs, no errors). Two clients met it in three of five runs (p95 439–863 ms), so they sit
+on the threshold. Throughput saturated near 11–13 requests per second, and latency, not
+errors, failed first. Results varied between runs on the same machine, so they describe
+this laptop only. Model load including a warm-up inference took 27.9 s, within the
+readiness target.
+
 **Monitoring health (indicator, not an objective):** scrape success,
 `avg_over_time(up{job="triage-api"}[5m])`. With a 15-second interval there are 20
 scrapes in 5 minutes; at most one missed scrape (≥ 0.95) is treated as healthy. This
@@ -253,8 +262,8 @@ traffic, which the 24-hour timeout already handles.
 - **Payloads:** the 24 synthetic expected-label descriptions, and longer synthetic
   descriptions built by joining them up to the 1,000-character input limit. The joined
   texts are stress data, not realistic clinical notes. Because load depends on tokens,
-  not characters, the token count of every payload is recorded; the input limit caps
-  inputs at roughly 250 tokens.
+  not characters, the token count of every payload is recorded (short 10–18 tokens,
+  long 106–172 tokens).
 - **Scenarios:** steady load at 1, 2, 4, and 8 concurrent virtual users for 3 minutes
   each.
 - **Recorded:** throughput, p50, p95, and p99 latency, error rate, and CPU use per step.
@@ -349,6 +358,19 @@ debugging, so about 30% is added on top.
 Total: about 13 hours of estimates, roughly 17 hours with the integration allowance,
 so two working days. Items are ordered so that the core path (M1–M3) is usable on its
 own if later items slip.
+
+**Status (2026-10-15).**
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| M1 Prometheus metrics, preload | Done | PR #25 |
+| M2 Monitoring stack | Done | PR #26; dashboard in `docs/images/grafana-drift-warning.png` |
+| M3 Alert rules, runbook | Done | PR #26; promtool and amtool in CI |
+| M4 Drift windows | Done | PR #25; window of 400 from `reports/drift_window_estimate.md` |
+| M5 Drills D0–D2 | Done | `docs/operations/drills/`; D1 found a 500 that should have been 503, now fixed |
+| M6 Release and rollback (D4) | Waiting | Needs the training-seed-1 bundle from the training server |
+| M7 Load test, D3 | Done | `reports/load_test.md`; capacity one client on the development laptop |
+| M8 Dependency audit | Done | Advisory CI job; first run reported jinja2, pytest, and accelerate advisories |
 
 **Definition of done for the implementing pull requests.** Documents that describe the
 removed JSON `/metrics` and `monitor-drift` are updated in the same pull request that

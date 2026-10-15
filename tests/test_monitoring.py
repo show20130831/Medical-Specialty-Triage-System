@@ -144,6 +144,11 @@ def test_without_reference_nothing_is_recorded():
     assert windows_closed(metrics) == 0
 
 
+def test_evaluation_interval_is_exported_for_staleness_rules():
+    _, metrics, _ = monitor(interval_seconds=60)
+    assert value(metrics, "triage_drift_evaluation_interval_seconds") == 60
+
+
 def test_thresholds_load_from_repository_config():
     thresholds = DriftThresholds.from_yaml(REPO_ROOT / "configs/monitoring.yaml")
     assert thresholds.min_predictions >= 100

@@ -137,8 +137,24 @@ the drift result of the last completed 400-prediction window. The service evalua
 drift itself in a separate thread and never exports per-specialty counts. The window
 size was validated: at 100 predictions, 64% of drift-free windows raised a false
 warning ([estimate](reports/drift_window_estimate.md)). Without ground-truth labels,
-drift is a signal of change, not proof of lower accuracy. The monitoring stack, alerts,
-and drills are planned in [docs/operations-plan.md](docs/operations-plan.md).
+drift is a signal of change, not proof of lower accuracy.
+
+`docker compose --profile monitoring up` adds Prometheus, Alertmanager, Grafana, and a
+local alert receiver, with eight alert rules linked to the runbook. Each failure mode was
+rehearsed and written up ([drill records](docs/operations/drills/)):
+
+| Drill | Injected | Result |
+| --- | --- | --- |
+| D0 | Normal traffic replay | No alert; live drift reproduced the reference |
+| D1 | Model bundle missing | Alerts in 2.0 and 7.3 min; **found and fixed a 500 that should have been 503** |
+| D2 | Specialties the model never learned | Drift WARN alert 19 s after the window completed |
+| D3 | Load above capacity | Latency alert after about 6 min; resolved 5 min after load stopped |
+
+![Grafana dashboard during drill D2](docs/images/grafana-drift-warning.png)
+
+Capacity on the development laptop is one concurrent client within the 500 ms p95
+target ([load test](reports/load_test.md)). The plan behind all of this, including what
+is not covered, is in [docs/operations-plan.md](docs/operations-plan.md).
 
 The runbook, rollback procedure, and retraining rules are in
 [docs/validation-and-operations.md](docs/validation-and-operations.md).
