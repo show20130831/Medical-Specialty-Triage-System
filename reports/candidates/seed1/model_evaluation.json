@@ -1,0 +1,459 @@
+{
+  "created_utc": "20261015T101343Z",
+  "dataset": {
+    "audit": {
+      "raw_rows": 4999,
+      "rows_with_description_and_specialty": 4993,
+      "unmapped_specialty_rows": 893,
+      "keyword_rows_without_match": 413,
+      "labeled_rows": 3687,
+      "labeled_rows_by_source": {
+        "direct": 2451,
+        "keyword": 1236
+      },
+      "duplicate_rows_removed": 1492,
+      "conflicting_descriptions": 409,
+      "conflicting_descriptions_dropped": 209,
+      "unique_descriptions": 1986
+    },
+    "split_sizes": {
+      "train": 1270,
+      "val": 318,
+      "test": 398
+    },
+    "overlap": {
+      "train_val_shared_descriptions": 0,
+      "train_test_shared_descriptions": 0,
+      "val_test_shared_descriptions": 0
+    },
+    "raw_csv_sha256": "924cc45b7f8efc8d06d0429cb2ea8ea79c75a0bc1ee54ff682d3f8fa632f93ab",
+    "taxonomy_sha256": "bceffb667a8c9f0aae9cc2f77de483dbd0d27920dc99a0c28cb6ad57ae1a22be"
+  },
+  "models": [
+    {
+      "name": "PubMedBERT (seed 1)",
+      "run": "pubmedbert_dedup_seed42_trainseed1_20261013T164435Z",
+      "n_test": 398,
+      "accuracy": {
+        "value": 0.8919597989949749,
+        "ci_low": 0.8618090452261307,
+        "ci_high": 0.9195979899497487
+      },
+      "macro_f1": {
+        "value": 0.8946535070550743,
+        "ci_low": 0.8617683246206942,
+        "ci_high": 0.9242015439414596
+      },
+      "weighted_f1": 0.8924276392528395,
+      "val_macro_f1": 0.8744597460784598
+    },
+    {
+      "name": "TF-IDF + logistic regression",
+      "run": "baseline_dedup_seed42_trainseed42_20261013T164338Z",
+      "n_test": 398,
+      "accuracy": {
+        "value": 0.7437185929648241,
+        "ci_low": 0.7010050251256281,
+        "ci_high": 0.7864321608040201
+      },
+      "macro_f1": {
+        "value": 0.7415748906882842,
+        "ci_low": 0.6907010866043349,
+        "ci_high": 0.7849826038666268
+      },
+      "weighted_f1": 0.744858984397462,
+      "val_macro_f1": 0.7677386588619968
+    },
+    {
+      "name": "PubMedBERT (seed 42)",
+      "run": "pubmedbert_dedup_seed42_trainseed42_20261013T164358Z",
+      "n_test": 398,
+      "accuracy": {
+        "value": 0.8844221105527639,
+        "ci_low": 0.8542085427135679,
+        "ci_high": 0.914572864321608
+      },
+      "macro_f1": {
+        "value": 0.8894228092933865,
+        "ci_low": 0.8565999613891959,
+        "ci_high": 0.9186302091074814
+      },
+      "weighted_f1": 0.8830814258889151,
+      "val_macro_f1": 0.8739307738865982
+    },
+    {
+      "name": "PubMedBERT (seed 2)",
+      "run": "pubmedbert_dedup_seed42_trainseed2_20261013T164506Z",
+      "n_test": 398,
+      "accuracy": {
+        "value": 0.8894472361809045,
+        "ci_low": 0.8567839195979899,
+        "ci_high": 0.9195979899497487
+      },
+      "macro_f1": {
+        "value": 0.8921396422334839,
+        "ci_low": 0.859289255669707,
+        "ci_high": 0.9209578620641222
+      },
+      "weighted_f1": 0.8882810333423363,
+      "val_macro_f1": 0.8702824063057911
+    }
+  ],
+  "seed_variation": {
+    "runs": 3,
+    "test_macro_f1_mean": 0.8920719861939815,
+    "test_macro_f1_std": 0.0026160051172144858
+  },
+  "comparison": {
+    "a": "PubMedBERT (seed 1)",
+    "b": "TF-IDF + logistic regression",
+    "mcnemar": {
+      "only_a_correct": 70,
+      "only_b_correct": 11,
+      "p_value": 1.1828221854912694e-11
+    },
+    "macro_f1_difference": {
+      "difference": 0.1530786163667901,
+      "ci_low": 0.11295403604591585,
+      "ci_high": 0.19831869503402125,
+      "p_value_one_sided": 0.0
+    },
+    "accuracy_difference": {
+      "difference": 0.14824120603015079,
+      "ci_low": 0.1080402010050251,
+      "ci_high": 0.19095477386934667,
+      "p_value_one_sided": 0.0
+    }
+  },
+  "errors": {
+    "per_class": {
+      "Cardiovascular & Pulmonary": {
+        "precision": 0.9701492537313433,
+        "recall": 0.9285714285714286,
+        "f1-score": 0.948905109489051,
+        "support": 70.0
+      },
+      "ENT & Ophthalmology": {
+        "precision": 0.9473684210526315,
+        "recall": 0.9,
+        "f1-score": 0.9230769230769231,
+        "support": 40.0
+      },
+      "Gastroenterology": {
+        "precision": 0.967741935483871,
+        "recall": 0.75,
+        "f1-score": 0.8450704225352113,
+        "support": 40.0
+      },
+      "General Medicine": {
+        "precision": 0.7674418604651163,
+        "recall": 0.8571428571428571,
+        "f1-score": 0.8098159509202454,
+        "support": 77.0
+      },
+      "Neurology": {
+        "precision": 0.8297872340425532,
+        "recall": 0.8478260869565217,
+        "f1-score": 0.8387096774193549,
+        "support": 46.0
+      },
+      "OB-GYN": {
+        "precision": 0.9655172413793104,
+        "recall": 0.9333333333333333,
+        "f1-score": 0.9491525423728814,
+        "support": 30.0
+      },
+      "Orthopedics": {
+        "precision": 0.9166666666666666,
+        "recall": 0.9850746268656716,
+        "f1-score": 0.9496402877697842,
+        "support": 67.0
+      },
+      "Urology": {
+        "precision": 0.8928571428571429,
+        "recall": 0.8928571428571429,
+        "f1-score": 0.8928571428571429,
+        "support": 28.0
+      }
+    },
+    "top_confusions": [
+      {
+        "true": "Neurology",
+        "predicted": "General Medicine",
+        "count": 5
+      },
+      {
+        "true": "General Medicine",
+        "predicted": "Neurology",
+        "count": 5
+      },
+      {
+        "true": "Gastroenterology",
+        "predicted": "General Medicine",
+        "count": 5
+      },
+      {
+        "true": "General Medicine",
+        "predicted": "Orthopedics",
+        "count": 3
+      },
+      {
+        "true": "ENT & Ophthalmology",
+        "predicted": "General Medicine",
+        "count": 3
+      }
+    ]
+  },
+  "calibration": {
+    "temperature": 0.7480972775403384,
+    "test_ece": {
+      "raw": 0.08050534158327761,
+      "calibrated": 0.02230010292228557
+    },
+    "test_nll": {
+      "raw": 0.37074530979054526,
+      "calibrated": 0.3293487697941236
+    },
+    "test_brier": {
+      "raw": 0.1607854637840194,
+      "calibrated": 0.15497693658032066
+    },
+    "reliability_test": [
+      {
+        "low": 0.0,
+        "high": 0.5,
+        "n": 8,
+        "mean_confidence": 0.452513672792507,
+        "accuracy": 0.25
+      },
+      {
+        "low": 0.5,
+        "high": 0.65,
+        "n": 18,
+        "mean_confidence": 0.5818360837681624,
+        "accuracy": 0.5
+      },
+      {
+        "low": 0.65,
+        "high": 0.8,
+        "n": 37,
+        "mean_confidence": 0.7346148426875314,
+        "accuracy": 0.6216216216216216
+      },
+      {
+        "low": 0.8,
+        "high": 0.9,
+        "n": 41,
+        "mean_confidence": 0.8544104596107471,
+        "accuracy": 0.8780487804878049
+      },
+      {
+        "low": 0.9,
+        "high": 0.95,
+        "n": 63,
+        "mean_confidence": 0.928365429594793,
+        "accuracy": 0.9365079365079365
+      },
+      {
+        "low": 0.95,
+        "high": 1.0,
+        "n": 231,
+        "mean_confidence": 0.9778381653594084,
+        "accuracy": 0.9783549783549783
+      }
+    ],
+    "selective_test": [
+      {
+        "threshold": 0.0,
+        "coverage": 1.0,
+        "accuracy": 0.8919597989949749
+      },
+      {
+        "threshold": 0.3,
+        "coverage": 1.0,
+        "accuracy": 0.8919597989949749
+      },
+      {
+        "threshold": 0.4,
+        "coverage": 0.9974874371859297,
+        "accuracy": 0.8942065491183879
+      },
+      {
+        "threshold": 0.5,
+        "coverage": 0.9798994974874372,
+        "accuracy": 0.9051282051282051
+      },
+      {
+        "threshold": 0.6,
+        "coverage": 0.949748743718593,
+        "accuracy": 0.917989417989418
+      },
+      {
+        "threshold": 0.7,
+        "coverage": 0.9120603015075377,
+        "accuracy": 0.9338842975206612
+      },
+      {
+        "threshold": 0.8,
+        "coverage": 0.8417085427135679,
+        "accuracy": 0.9582089552238806
+      },
+      {
+        "threshold": 0.9,
+        "coverage": 0.7386934673366834,
+        "accuracy": 0.9693877551020408
+      }
+    ],
+    "uncertain_threshold": {
+      "target_answered_accuracy": 0.9,
+      "chosen_on": "val",
+      "threshold": 0.5,
+      "test": {
+        "threshold": 0.5,
+        "coverage": 0.9798994974874372,
+        "accuracy": 0.9051282051282051
+      },
+      "test_ci": {
+        "coverage": {
+          "ci_low": 0.964824120603015,
+          "ci_high": 0.992462311557789
+        },
+        "accuracy": {
+          "ci_low": 0.8743589743589744,
+          "ci_high": 0.9331619537275064
+        }
+      },
+      "stability": {
+        "validation_resamples": 1000,
+        "threshold_median": 0.5,
+        "threshold_ci_low": 0.0,
+        "threshold_ci_high": 0.7,
+        "test_at_ci_low": {
+          "threshold": 0.0,
+          "coverage": 1.0,
+          "accuracy": 0.8919597989949749
+        },
+        "test_at_ci_high": {
+          "threshold": 0.7,
+          "coverage": 0.9120603015075377,
+          "accuracy": 0.9338842975206612
+        }
+      },
+      "per_class_test": {
+        "Cardiovascular & Pulmonary": {
+          "n": 70,
+          "abstention_rate": 0.014285714285714285,
+          "answered_accuracy": 0.927536231884058
+        },
+        "ENT & Ophthalmology": {
+          "n": 40,
+          "abstention_rate": 0.0,
+          "answered_accuracy": 0.9
+        },
+        "Gastroenterology": {
+          "n": 40,
+          "abstention_rate": 0.05,
+          "answered_accuracy": 0.7894736842105263
+        },
+        "General Medicine": {
+          "n": 77,
+          "abstention_rate": 0.03896103896103896,
+          "answered_accuracy": 0.8783783783783784
+        },
+        "Neurology": {
+          "n": 46,
+          "abstention_rate": 0.021739130434782608,
+          "answered_accuracy": 0.8666666666666667
+        },
+        "OB-GYN": {
+          "n": 30,
+          "abstention_rate": 0.0,
+          "answered_accuracy": 0.9333333333333333
+        },
+        "Orthopedics": {
+          "n": 67,
+          "abstention_rate": 0.0,
+          "answered_accuracy": 0.9850746268656716
+        },
+        "Urology": {
+          "n": 28,
+          "abstention_rate": 0.03571428571428571,
+          "answered_accuracy": 0.9259259259259259
+        }
+      }
+    }
+  },
+  "model_run": {
+    "run": "pubmedbert_dedup_seed42_trainseed1_20261013T164435Z",
+    "created_utc": "20261013T164504Z",
+    "git_commit": "4d8e6690e03a7da78bffa8e63a59ec483187a49f"
+  },
+  "label_source": {
+    "PubMedBERT (seed 1)": {
+      "direct": {
+        "n": 242,
+        "accuracy": 0.8636363636363636
+      },
+      "keyword": {
+        "n": 156,
+        "accuracy": 0.9358974358974359
+      }
+    },
+    "TF-IDF + logistic regression": {
+      "direct": {
+        "n": 242,
+        "accuracy": 0.6776859504132231
+      },
+      "keyword": {
+        "n": 156,
+        "accuracy": 0.8461538461538461
+      }
+    }
+  },
+  "keyword_label_overlap": {
+    "model": "PubMedBERT (seed 1)",
+    "keyword_rows": 156,
+    "share_with_own_label_term": 0.8717948717948718,
+    "accuracy_with_specific_term": {
+      "n": 90,
+      "accuracy": 0.9888888888888889
+    },
+    "accuracy_without_specific_term": {
+      "n": 66,
+      "accuracy": 0.8636363636363636
+    }
+  },
+  "near_duplicates": {
+    "similarity": "character 3-5 gram TF-IDF cosine to the nearest train description",
+    "median_nearest_similarity": 0.3878371301504212,
+    "share_at_least": {
+      "0.9": 0.01256281407035176,
+      "0.8": 0.04020100502512563,
+      "0.7": 0.07537688442211055
+    },
+    "accuracy": {
+      "PubMedBERT (seed 1)": {
+        "near_duplicate": {
+          "n": 16,
+          "accuracy": 1.0
+        },
+        "other": {
+          "n": 382,
+          "accuracy": 0.887434554973822
+        }
+      },
+      "TF-IDF + logistic regression": {
+        "near_duplicate": {
+          "n": 16,
+          "accuracy": 1.0
+        },
+        "other": {
+          "n": 382,
+          "accuracy": 0.7329842931937173
+        }
+      }
+    }
+  },
+  "leakage": [],
+  "serving_parity": null
+}

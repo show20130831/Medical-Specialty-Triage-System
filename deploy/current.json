@@ -1,0 +1,21 @@
+{
+  "note": "Deployment record (docs/operations-plan.md §10). /version and triage_model_info must agree with it after every deployment.",
+  "deployed_utc": "2026-10-15T11:13:09Z",
+  "application": {
+    "image": "medical_specialty_triage_system-api:latest (built locally by docker compose)",
+    "image_id": "sha256:5562d225f4327a68f11cf1425e10dcca2ca674d17c80147696110167bfed98fc",
+    "source_commit": "90a1a09"
+  },
+  "model": {
+    "archive": "show20130831/medical-specialty-pubmedbert (private Hugging Face repository)",
+    "archive_revision": "27488fb46ae7a6306547f1fb697d2ade9268b9de",
+    "bundle_dir": "models/pubmedbert_description",
+    "weights_sha256": "a2f4ad5c6d97bdd224e3703b00e70ea2686e5e3cbc0dcc48567cc21fa6b39bc2",
+    "training_commit": "4d8e669",
+    "training_run": "pubmedbert_dedup_seed42_trainseed42_20261013T164358Z"
+  },
+  "rejected_candidates": [
+    {"training_run": "pubmedbert_dedup_seed42_trainseed1_20261013T164435Z", "weights_sha256": "a04f35be40044146f9c283315c0fc8d51ff1d2a6a4dc2899ee44bb55d71e1165", "gate": "reports/candidates/seed1/release_validation.md"},
+    {"training_run": "pubmedbert_dedup_seed42_trainseed2_20261013T164506Z", "weights_sha256": "def232eb810c2825099c5dea6a6b4d0dfd26177f9181a1fdfb4f11a71664765b", "gate": "reports/candidates/seed2/release_validation.md"}
+  ]
+}
