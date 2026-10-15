@@ -1,9 +1,9 @@
 # Operations Plan
 
 **Last updated:** 2026-10-15
-**Status:** Approved after three external reviews. M1–M5, M7, and M8 are implemented and
-drilled (2026-10-15); M6, the release and rollback drill, waits for the candidate model.
-See §13 for the status of each item. Until it is, [Validation and Operations](validation-and-operations.md)
+**Status:** Approved after three external reviews; the MVP (M1–M8) is implemented and
+drilled (2026-10-15). In M6 both candidate models failed the release gate, so the
+rollback was rehearsed as a restore from the archive. See §13 for each item. Until it is, [Validation and Operations](validation-and-operations.md)
 and the README describe the system as it runs today (JSON `/metrics`, manual
 `monitor-drift`); the implementing pull request updates them together.
 **Related:** [Product Design and Delivery Plan](product-design-and-plan.md) ·
@@ -368,7 +368,7 @@ own if later items slip.
 | M3 Alert rules, runbook | Done | PR #26; promtool and amtool in CI |
 | M4 Drift windows | Done | PR #25; window of 400 from `reports/drift_window_estimate.md` |
 | M5 Drills D0–D2 | Done | `docs/operations/drills/`; D1 found a 500 that should have been 503, now fixed |
-| M6 Release and rollback (D4) | Waiting | Needs the training-seed-1 bundle from the training server |
+| M6 Release and rollback (D4) | Done, partly | Seeds 1 and 2 both failed the gate (abstention set biased toward the served model); restore rehearsed twice, downtime 68 s then 57 s; archive was missing `monitoring_reference.json`, now fixed |
 | M7 Load test, D3 | Done | `reports/load_test.md`; capacity one client on the development laptop |
 | M8 Dependency audit | Done | Advisory CI job; first run reported jinja2, pytest, and accelerate advisories |
 

@@ -1,0 +1,248 @@
+{
+  "created_utc": "20261015T101740Z",
+  "decision": "FAIL",
+  "model": {
+    "weights_sha256": "a04f35be40044146f9c283315c0fc8d51ff1d2a6a4dc2899ee44bb55d71e1165",
+    "run": "pubmedbert_dedup_seed42_trainseed1_20261013T164435Z",
+    "training_commit": "4d8e6690e03a7da78bffa8e63a59ec483187a49f"
+  },
+  "validated_with": {
+    "commit": "90a1a098890d501d18461e5f98b7f68c81d8c4cf",
+    "dirty": false
+  },
+  "checks": [
+    {
+      "check": "Evaluation report belongs to this bundle",
+      "value": "pubmedbert_dedup_seed42_trainseed1_20261013T164435Z",
+      "requirement": "same training run and commit",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Test macro F1",
+      "value": 0.8946535070550743,
+      "requirement": ">= 0.85",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Macro F1 gain over baseline, 95% CI lower bound",
+      "value": 0.11295403604591585,
+      "requirement": "> 0.0",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Lowest per-class F1 (General Medicine)",
+      "value": 0.8098159509202454,
+      "requirement": ">= 0.75",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Calibrated ECE",
+      "value": 0.02230010292228557,
+      "requirement": "<= 0.08",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Accuracy on answered inputs",
+      "value": 0.9051282051282051,
+      "requirement": ">= 0.9",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Share of inputs answered",
+      "value": 0.9798994974874372,
+      "requirement": ">= 0.85",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Expected labels (24 clear cases)",
+      "value": 0.9583333333333334,
+      "requirement": ">= 1.0",
+      "passed": false,
+      "kind": "gate"
+    },
+    {
+      "check": "Invariance to case, punctuation, spacing (9 variants)",
+      "value": 1.0,
+      "requirement": ">= 1.0",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Abstention on ambiguous descriptions (5 cases)",
+      "value": 0.4,
+      "requirement": ">= 0.8",
+      "passed": false,
+      "kind": "gate"
+    },
+    {
+      "check": "Out-of-scope inputs answered confidently (5 cases)",
+      "value": 1.0,
+      "requirement": "reported only; no out-of-distribution detection",
+      "passed": true,
+      "kind": "info"
+    },
+    {
+      "check": "Single-request CPU latency p95 (ms)",
+      "value": 127.49898500187547,
+      "requirement": "<= 500 (p50 85 ms)",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Excluded-specialty descriptions answered confidently (745 unique)",
+      "value": 0.9463087248322147,
+      "requirement": "reported only; no out-of-distribution detection",
+      "passed": true,
+      "kind": "info"
+    }
+  ],
+  "behavioural_failures": [
+    {
+      "type": "expected_label",
+      "text": "Ureteroscopy and laser lithotripsy of a left ureteral stone.",
+      "want": "Urology",
+      "got": "Gastroenterology",
+      "score": 0.5001362031762487,
+      "uncertain": false
+    },
+    {
+      "type": "abstention",
+      "text": "Abdominal pain and urinary frequency.",
+      "got": "Gastroenterology",
+      "score": 0.6406610559868137
+    },
+    {
+      "type": "abstention",
+      "text": "Dizziness and blurred vision.",
+      "got": "Neurology",
+      "score": 0.7111131569826703
+    },
+    {
+      "type": "abstention",
+      "text": "Headache and abdominal pain with nausea.",
+      "got": "General Medicine",
+      "score": 0.9620070572174662
+    }
+  ],
+  "out_of_taxonomy": {
+    "descriptions": 745,
+    "specialties": 16,
+    "uncertain_rate": 0.053691275167785234,
+    "share_score_at_least_0_9": 0.5959731543624162,
+    "predicted_label_share": {
+      "General Medicine": 0.392,
+      "Neurology": 0.172,
+      "Orthopedics": 0.122,
+      "Cardiovascular & Pulmonary": 0.091,
+      "Gastroenterology": 0.079,
+      "ENT & Ophthalmology": 0.075,
+      "Urology": 0.036,
+      "OB-GYN": 0.032
+    },
+    "by_specialty": [
+      {
+        "medical_specialty": "Consult - History and Phy.",
+        "n": 404,
+        "uncertain_rate": 0.037,
+        "median_score": 0.93
+      },
+      {
+        "medical_specialty": "Pediatrics - Neonatal",
+        "n": 70,
+        "uncertain_rate": 0.057,
+        "median_score": 0.916
+      },
+      {
+        "medical_specialty": "Emergency Room Reports",
+        "n": 67,
+        "uncertain_rate": 0.045,
+        "median_score": 0.91
+      },
+      {
+        "medical_specialty": "Podiatry",
+        "n": 47,
+        "uncertain_rate": 0.0,
+        "median_score": 0.984
+      },
+      {
+        "medical_specialty": "Dermatology",
+        "n": 25,
+        "uncertain_rate": 0.12,
+        "median_score": 0.93
+      },
+      {
+        "medical_specialty": "Cosmetic / Plastic Surgery",
+        "n": 23,
+        "uncertain_rate": 0.261,
+        "median_score": 0.686
+      },
+      {
+        "medical_specialty": "Letters",
+        "n": 21,
+        "uncertain_rate": 0.0,
+        "median_score": 0.94
+      },
+      {
+        "medical_specialty": "Sleep Medicine",
+        "n": 20,
+        "uncertain_rate": 0.15,
+        "median_score": 0.928
+      },
+      {
+        "medical_specialty": "IME-QME-Work Comp etc.",
+        "n": 12,
+        "uncertain_rate": 0.167,
+        "median_score": 0.946
+      },
+      {
+        "medical_specialty": "Bariatrics",
+        "n": 11,
+        "uncertain_rate": 0.0,
+        "median_score": 0.969
+      },
+      {
+        "medical_specialty": "Diets and Nutritions",
+        "n": 10,
+        "uncertain_rate": 0.1,
+        "median_score": 0.841
+      },
+      {
+        "medical_specialty": "Autopsy",
+        "n": 8,
+        "uncertain_rate": 0.125,
+        "median_score": 0.876
+      },
+      {
+        "medical_specialty": "Speech - Language",
+        "n": 8,
+        "uncertain_rate": 0.125,
+        "median_score": 0.933
+      },
+      {
+        "medical_specialty": "Lab Medicine - Pathology",
+        "n": 8,
+        "uncertain_rate": 0.125,
+        "median_score": 0.949
+      },
+      {
+        "medical_specialty": "Hospice - Palliative Care",
+        "n": 6,
+        "uncertain_rate": 0.0,
+        "median_score": 0.858
+      },
+      {
+        "medical_specialty": "Chiropractic",
+        "n": 5,
+        "uncertain_rate": 0.0,
+        "median_score": 0.987
+      }
+    ]
+  }
+}
