@@ -1,0 +1,234 @@
+{
+  "created_utc": "20261015T110700Z",
+  "decision": "FAIL",
+  "model": {
+    "weights_sha256": "def232eb810c2825099c5dea6a6b4d0dfd26177f9181a1fdfb4f11a71664765b",
+    "run": "pubmedbert_dedup_seed42_trainseed2_20261013T164506Z",
+    "training_commit": "4d8e6690e03a7da78bffa8e63a59ec483187a49f"
+  },
+  "validated_with": {
+    "commit": "90a1a098890d501d18461e5f98b7f68c81d8c4cf",
+    "dirty": false
+  },
+  "checks": [
+    {
+      "check": "Evaluation report belongs to this bundle",
+      "value": "pubmedbert_dedup_seed42_trainseed2_20261013T164506Z",
+      "requirement": "same training run and commit",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Test macro F1",
+      "value": 0.8921396422334839,
+      "requirement": ">= 0.85",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Macro F1 gain over baseline, 95% CI lower bound",
+      "value": 0.10803869580889958,
+      "requirement": "> 0.0",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Lowest per-class F1 (General Medicine)",
+      "value": 0.8050314465408805,
+      "requirement": ">= 0.75",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Calibrated ECE",
+      "value": 0.04069616684099782,
+      "requirement": "<= 0.08",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Accuracy on answered inputs",
+      "value": 0.9138381201044387,
+      "requirement": ">= 0.9",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Share of inputs answered",
+      "value": 0.9623115577889447,
+      "requirement": ">= 0.85",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Expected labels (24 clear cases)",
+      "value": 1.0,
+      "requirement": ">= 1.0",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Invariance to case, punctuation, spacing (9 variants)",
+      "value": 1.0,
+      "requirement": ">= 1.0",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Abstention on ambiguous descriptions (5 cases)",
+      "value": 0.6,
+      "requirement": ">= 0.8",
+      "passed": false,
+      "kind": "gate"
+    },
+    {
+      "check": "Out-of-scope inputs answered confidently (5 cases)",
+      "value": 1.0,
+      "requirement": "reported only; no out-of-distribution detection",
+      "passed": true,
+      "kind": "info"
+    },
+    {
+      "check": "Single-request CPU latency p95 (ms)",
+      "value": 95.84152000752506,
+      "requirement": "<= 500 (p50 63 ms)",
+      "passed": true,
+      "kind": "gate"
+    },
+    {
+      "check": "Excluded-specialty descriptions answered confidently (745 unique)",
+      "value": 0.9355704697986578,
+      "requirement": "reported only; no out-of-distribution detection",
+      "passed": true,
+      "kind": "info"
+    }
+  ],
+  "behavioural_failures": [
+    {
+      "type": "abstention",
+      "text": "Abdominal pain and urinary frequency.",
+      "got": "Gastroenterology",
+      "score": 0.6030268502445094
+    },
+    {
+      "type": "abstention",
+      "text": "Headache and abdominal pain with nausea.",
+      "got": "General Medicine",
+      "score": 0.9741910010162411
+    }
+  ],
+  "out_of_taxonomy": {
+    "descriptions": 745,
+    "specialties": 16,
+    "uncertain_rate": 0.06442953020134229,
+    "share_score_at_least_0_9": 0.6926174496644295,
+    "predicted_label_share": {
+      "General Medicine": 0.388,
+      "Neurology": 0.161,
+      "Orthopedics": 0.128,
+      "Cardiovascular & Pulmonary": 0.105,
+      "ENT & Ophthalmology": 0.075,
+      "Gastroenterology": 0.068,
+      "Urology": 0.046,
+      "OB-GYN": 0.03
+    },
+    "by_specialty": [
+      {
+        "medical_specialty": "Consult - History and Phy.",
+        "n": 404,
+        "uncertain_rate": 0.05,
+        "median_score": 0.95
+      },
+      {
+        "medical_specialty": "Pediatrics - Neonatal",
+        "n": 70,
+        "uncertain_rate": 0.1,
+        "median_score": 0.94
+      },
+      {
+        "medical_specialty": "Emergency Room Reports",
+        "n": 67,
+        "uncertain_rate": 0.06,
+        "median_score": 0.944
+      },
+      {
+        "medical_specialty": "Podiatry",
+        "n": 47,
+        "uncertain_rate": 0.043,
+        "median_score": 0.984
+      },
+      {
+        "medical_specialty": "Dermatology",
+        "n": 25,
+        "uncertain_rate": 0.08,
+        "median_score": 0.925
+      },
+      {
+        "medical_specialty": "Cosmetic / Plastic Surgery",
+        "n": 23,
+        "uncertain_rate": 0.13,
+        "median_score": 0.889
+      },
+      {
+        "medical_specialty": "Letters",
+        "n": 21,
+        "uncertain_rate": 0.095,
+        "median_score": 0.94
+      },
+      {
+        "medical_specialty": "Sleep Medicine",
+        "n": 20,
+        "uncertain_rate": 0.15,
+        "median_score": 0.945
+      },
+      {
+        "medical_specialty": "IME-QME-Work Comp etc.",
+        "n": 12,
+        "uncertain_rate": 0.083,
+        "median_score": 0.899
+      },
+      {
+        "medical_specialty": "Bariatrics",
+        "n": 11,
+        "uncertain_rate": 0.0,
+        "median_score": 0.968
+      },
+      {
+        "medical_specialty": "Diets and Nutritions",
+        "n": 10,
+        "uncertain_rate": 0.0,
+        "median_score": 0.902
+      },
+      {
+        "medical_specialty": "Autopsy",
+        "n": 8,
+        "uncertain_rate": 0.125,
+        "median_score": 0.831
+      },
+      {
+        "medical_specialty": "Speech - Language",
+        "n": 8,
+        "uncertain_rate": 0.125,
+        "median_score": 0.883
+      },
+      {
+        "medical_specialty": "Lab Medicine - Pathology",
+        "n": 8,
+        "uncertain_rate": 0.125,
+        "median_score": 0.95
+      },
+      {
+        "medical_specialty": "Hospice - Palliative Care",
+        "n": 6,
+        "uncertain_rate": 0.167,
+        "median_score": 0.944
+      },
+      {
+        "medical_specialty": "Chiropractic",
+        "n": 5,
+        "uncertain_rate": 0.0,
+        "median_score": 0.977
+      }
+    ]
+  }
+}
