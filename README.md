@@ -1,285 +1,125 @@
-﻿# Medical Specialty Triage System
+# Medical Specialty Triage System
 
-An educational NLP application that suggests which of eight medical specialties an
-English clinical description belongs to, with calibrated confidence and an "uncertain"
-answer when the model should defer to a person.
+[![CI](https://github.com/show20130831/Medical-Specialty-Triage-System/actions/workflows/ci.yml/badge.svg)](https://github.com/show20130831/Medical-Specialty-Triage-System/actions/workflows/ci.yml)
 
-The project covers the full ML workflow: a reproducible data and training pipeline with
-leakage-free splits, a statistically evaluated PubMedBERT model, a FastAPI service with a
-browser interface, Docker packaging, automated tests, and CI.
+**Suggests which of eight medical specialties a clinical description belongs to, and
+says "uncertain" when a person should decide instead.**
 
-![Demo: two confident predictions, then an ambiguous description marked uncertain](docs/images/demo.gif)
+A fine-tuned PubMedBERT model behind a FastAPI service, built end to end: data pipeline,
+statistical evaluation, release gate, monitoring, and rehearsed incident response.
 
-## Current Status
+> Research and engineering prototype. Not for clinical use; no diagnosis, urgency
+> assessment, or treatment advice.
 
-The application runs locally with the fine-tuned model on CPU.
+![Demo: two confident suggestions, then an ambiguous description marked uncertain](docs/images/demo.gif)
+
+## Overview
+
+| | |
+| --- | --- |
+| **Problem** | Routing a clinical description to a specialty is a classification task where a confident wrong answer is worse than no answer. |
+| **Solution** | Returns the top three specialties with calibrated confidence and abstains below a threshold validated on held-out data. |
+| **Model** | PubMedBERT fine-tuned on 1,986 unique MTSamples descriptions; CPU inference. |
+| **Scope** | English clinician-written descriptions; eight specialty groups. |
+
+## Results
+
+Test sets contain only descriptions never seen in training.
+
+| Model | Macro F1, 6 data splits | Served model (95% CI) |
+| --- | --- | --- |
+| TF-IDF + logistic regression (baseline) | 0.761 ± 0.022 | 0.742 [0.691, 0.785] |
+| **PubMedBERT** | **0.876 ± 0.012** | **0.889 [0.857, 0.919]** |
+
+- **Beats the baseline on every split** (mean +0.115 macro F1; McNemar p < 0.001).
+- **Abstention works:** answering 92.5% of inputs raises accuracy from 88.4% to 91.6%.
+- **Honest headline:** on labels that do not come from keyword rules, accuracy is
+  85.5%, the conservative estimate ([evaluation report](reports/model_evaluation.md)).
+
+## Highlights
+
+**Data quality: found and removed leakage.** 40% of labeled rows were duplicates, so the
+original split let the model memorise test answers (99% on seen rows, 41% on rows with
+conflicting labels). The pipeline now deduplicates, resolves label conflicts, and
+validates that no description crosses splits.
+
+**Evaluation that does not flatter.** Bootstrap intervals, paired significance tests,
+three training seeds, and six data splits. The originally reported score turned out to
+be the best of six splits, so the README leads with the mean.
+
+**A release gate that blocks better-looking models.** Every model bundle must pass
+offline metrics, 43 behavioural test cases, and a latency check. Two retrained
+candidates with *higher* F1 were rejected for failing behavioural checks.
+
+**Monitoring designed for privacy.** Prometheus metrics never expose text or
+per-specialty counts; drift is computed inside the service over 400-prediction windows,
+a size chosen after 100-prediction windows raised false alarms 64% of the time.
+
+**Failure modes rehearsed, not just documented.** Each drill is written up with
+timings and fixes:
+
+| Drill | What happened |
+| --- | --- |
+| Normal traffic | No alert; live drift monitoring reproduced the offline reference |
+| Model missing | Alerts fired in 2 and 7 minutes; **exposed a bug (500 instead of 503), now fixed** |
+| Unfamiliar traffic | Drift alert 19 seconds after the window completed |
+| Overload | Latency alert after about 6 minutes; cleared after load stopped |
+| Release and rollback | Candidates rejected by the gate; restore from archive exposed a missing file, now fixed |
+
+## Architecture
 
 ```text
-Browser -> FastAPI -> PubMedBERT (CPU) -> top-3 specialties + calibrated confidence
-                                        -> "uncertain" below the validated threshold
+ Training (GPU)                    Serving (CPU, Docker)                    Operations
+ ─────────────                     ─────────────────────                    ──────────
+ MTSamples                         FastAPI ── /predict, /version            Prometheus ── 8 alert rules
+   → clean, label, deduplicate       │        /health, /ready                 → Alertmanager → receiver
+   → validated splits                ├─ PubMedBERT + calibration             Grafana dashboard
+   → baseline + PubMedBERT           ├─ abstention threshold                Runbook, drills,
+   → evaluation report    ──gate──▶  ├─ in-process drift windows            change control
+   → private model archive           └─ /metrics (no text) ──────────────▶
 ```
 
-The trained weights are kept in a private Hugging Face repository because the MTSamples
-training data does not state a license, so neither the data nor the weights are
-redistributed and no public online demo is hosted. Given access to the dataset and
-compliance with its source's terms, the training pipeline reproduces the model in a few
-minutes on one GPU; see [docs/training.md](docs/training.md).
-
-| Confident prediction | Uncertain prediction |
-| --- | --- |
-| ![Orthopedics at 98% confidence](docs/images/prediction-confident.png) | ![Ambiguous chest and back pain marked uncertain](docs/images/prediction-uncertain.png) |
-
-## Features
-
-- Classifies description-only input into eight specialties and returns the top three.
-- Reports temperature-calibrated confidence and marks low-confidence inputs as
-  `uncertain` using a threshold chosen on validation data.
-- Serves a same-origin browser interface at `/`.
-- Exposes `/predict`, `/health`, `/ready`, `/version` (served weights hash, training
-  commit, calibration), and `/metrics` (Prometheus format; no text and no per-specialty
-  values) endpoints.
-- Loads the local model once per API process in CPU evaluation mode.
-- Accepts descriptions up to 1,000 characters (training maximum 433), so nothing is
-  truncated; rejects blank or longer input with `422` and oversized bodies with `413`;
-  returns `503` when the model is unavailable.
-- Release gate, drift check, runbook, and change control for the model; see
-  [Validation and Operations](#validation-and-operations).
-- Logs request metadata without logging medical text.
-- Provides Docker and Docker Compose configuration.
-
-## Technology
-
-- Python 3.10+
-- FastAPI and Uvicorn
-- PyTorch CPU
-- Hugging Face Transformers
-- PubMedBERT fine-tuned for description classification
-- Pytest
-- Docker
-- GitHub Actions
+![Grafana dashboard during a drift drill](docs/images/grafana-drift-warning.png)
 
 ## Quick Start
 
-Create the environment and install the API and test dependencies:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[test]"
-```
-
-Install CPU inference dependencies:
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install "torch==2.14.1" --index-url https://download.pytorch.org/whl/cpu
-.\.venv\Scripts\python.exe -m pip install -e ".[inference]"
-```
-
-Place a model bundle at `models/pubmedbert_description/`: either train one with
-[docs/training.md](docs/training.md) or, with access to the private Hugging Face repository,
-run `hf download show20130831/medical-specialty-pubmedbert --local-dir models/pubmedbert_description`.
-
-Set the model path and start the API:
-
-```powershell
-$env:TRIAGE_MODEL_DIR = (Resolve-Path ".\models\pubmedbert_description").Path
-$env:TRIAGE_HOST = "127.0.0.1"
-$env:TRIAGE_PORT = "8000"
-.\.venv\Scripts\python.exe -B -m triage_system
-```
-
-Open http://127.0.0.1:8000/ in a browser.
-
-## API Example
-
-```powershell
-$body = @{ description = "Persistent knee pain and stiffness when walking." } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/predict `
-  -ContentType "application/json" -Body $body
-```
-
-Example response:
-
-```json
-{
-  "label": "Orthopedics",
-  "score": 0.9825,
-  "uncertain": false,
-  "top": [
-    {"label": "Orthopedics", "score": 0.9825},
-    {"label": "Neurology", "score": 0.0043},
-    {"label": "General Medicine", "score": 0.0029}
-  ]
-}
-```
-
-Scores are softmax outputs after temperature scaling fitted on validation data
-(`calibration.json` in the model bundle). When the top score falls below the
-validated threshold, `uncertain` is `true` and the browser asks for manual review; on
-the test split this withholds 7.5% of inputs and raises accuracy on the rest from
-88.4% to 91.6%.
-
-| Condition | Status |
-| --- | --- |
-| Prediction returned | `200` |
-| Blank or over 1,000 characters | `422` |
-| Request body over 16 KB, or without `Content-Length` | `413` / `411` |
-| Model not configured or failed to load | `503` |
-
-## Validation and Operations
-
-Before release, `python -m triage_training validate-model` checks a bundle against
-[configs/release_criteria.yaml](configs/release_criteria.yaml): offline metrics, 43
-synthetic behavioural cases, and CPU latency. The served bundle passes
-([release report](reports/release_validation.md)).
-
-In use, `/metrics` exports Prometheus metrics: request counts, latency, model state, and
-the drift result of the last completed 400-prediction window. The service evaluates
-drift itself in a separate thread and never exports per-specialty counts. The window
-size was validated: at 100 predictions, 64% of drift-free windows raised a false
-warning ([estimate](reports/drift_window_estimate.md)). Without ground-truth labels,
-drift is a signal of change, not proof of lower accuracy.
-
-`docker compose --profile monitoring up` adds Prometheus, Alertmanager, Grafana, and a
-local alert receiver, with eight alert rules linked to the runbook. Each failure mode was
-rehearsed and written up ([drill records](docs/operations/drills/)):
-
-| Drill | Injected | Result |
-| --- | --- | --- |
-| D0 | Normal traffic replay | No alert; live drift reproduced the reference |
-| D1 | Model bundle missing | Alerts in 2.0 and 7.3 min; **found and fixed a 500 that should have been 503** |
-| D2 | Specialties the model never learned | Drift WARN alert 19 s after the window completed |
-| D3 | Load above capacity | Latency alert after about 6 min; resolved 5 min after load stopped |
-| D4 | Release a new model, then roll back | Both candidates **rejected by the gate** despite better offline scores; restore from archive took 57–68 s and exposed a missing monitoring file in the archive |
-
-![Grafana dashboard during drill D2](docs/images/grafana-drift-warning.png)
-
-Capacity on the development laptop is one concurrent client within the 500 ms p95
-target ([load test](reports/load_test.md)). The plan behind all of this, including what
-is not covered, is in [docs/operations-plan.md](docs/operations-plan.md).
-
-The runbook, rollback procedure, and retraining rules are in
-[docs/validation-and-operations.md](docs/validation-and-operations.md).
-
-## Docker
-
-The container does not include model weights. Mount the private export read-only through Docker Compose:
-
-```powershell
-docker compose up --build
-```
-
-The browser interface is available at http://127.0.0.1:8000/. Stop the container with:
-
-```powershell
-docker compose down
-```
-
-## Model Development
-
-The classifier is trained by the `triage_training` package from the public Kaggle
-MTSamples dataset: cleaning, taxonomy labeling, deduplication, leakage-free stratified
-splits, data validation, a TF-IDF baseline, and PubMedBERT fine-tuning, all driven by
-[configs/train.yaml](configs/train.yaml). See [docs/training.md](docs/training.md).
+Requires Docker and the model bundle in `models/pubmedbert_description/` (trained with
+the [pipeline](docs/training.md); the weights are private because the training data has
+no stated license).
 
 ```bash
-python -m triage_training prepare-data
-python -m triage_training baseline
-python -m triage_training finetune
+docker compose up --build                       # API at http://127.0.0.1:8000
+docker compose --profile monitoring up --build  # adds Grafana at http://127.0.0.1:3000
 ```
 
-### Results
+Local Python setup, API reference, and tests: [docs/development.md](docs/development.md).
 
-Test split of 398 unique descriptions that never appear in training. Intervals are 95%
-bootstrap intervals; full analysis in [reports/model_evaluation.md](reports/model_evaluation.md).
+## Documentation
 
-| Model | Test accuracy | Test macro F1 |
-| --- | --- | --- |
-| TF-IDF + logistic regression | 0.744 [0.701, 0.786] | 0.742 [0.691, 0.785] |
-| PubMedBERT (seed 42, served) | 0.884 [0.854, 0.915] | 0.889 [0.857, 0.919] |
-| PubMedBERT, 3 training seeds | | 0.892 ± 0.003 (mean ± SD) |
-| PubMedBERT, 6 data splits | | **0.876 ± 0.012** (0.858–0.889) |
-| TF-IDF + logistic regression, 6 data splits | | 0.761 ± 0.022 (0.738–0.788) |
+| Document | Contents |
+| --- | --- |
+| [Product design](docs/product-design-and-plan.md) | Scope, data, evaluation, architecture, risks |
+| [Training](docs/training.md) | Reproducible pipeline and data decisions |
+| [Validation and operations](docs/validation-and-operations.md) | Release gate, monitoring, runbook, change control |
+| [Operations plan](docs/operations-plan.md) | Monitoring design, SLOs, alerting, drills |
+| [Drill records](docs/operations/drills/) | What was injected, detected, and fixed |
+| [Reports](reports/) | Evaluation, release gate, split variation, load test |
+| [Development](docs/development.md) | Setup, API, testing, CI, repository layout |
 
-The served split happens to be PubMedBERT's best of six, so 0.876 is the more
-representative figure ([split variation](reports/split_variation.md)).
+## Tech Stack
 
-- PubMedBERT beats the baseline by +0.148 macro F1 [+0.107, +0.192]; exact McNemar
-  p < 0.001. It wins on every one of six data splits (mean +0.115, smallest +0.071).
-- Splitting rows instead of unique descriptions put 365 identical descriptions in both
-  train and test. On that split, test rows seen in training scored 99% (memorised) and
-  rows with conflicting labels 41%, so its 0.80 macro F1 mixed both effects. This is why
-  the pipeline deduplicates before splitting.
-- Rows labeled by keyword rules score 93%, directly mapped rows 86%: for 87% of
-  keyword-rule rows the description contains a keyword of its own label, so part of the
-  headline score reflects the labeling rules. **86% on directly mapped rows is the more
-  conservative estimate.**
-- These are internal results (same source, same labeling rules). No external
-  validation has been done, and `uncertain` does not detect out-of-scope input: 90% of
-  descriptions from excluded specialties still received a confident label.
-
-## Testing
-
-```powershell
-.\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
-.\.venv\Scripts\python.exe -m pip check
-```
-
-The test suite covers API behavior, input validation, model asset validation, offline CPU loading contracts, prediction logic, configuration, privacy-safe logging, and the training data pipeline (labeling, deduplication, split validation, baseline). Training tests use synthetic data, so CI needs neither the dataset nor a GPU. CI runs the test suite on Windows and Ubuntu with Python 3.10.
-
-## Engineering Highlights
-
-- Model assets are validated before loading, without reading weight bytes during metadata checks.
-- Model loading is local-only with remote code disabled and safetensors enabled.
-- `/health` remains independent from model availability; `/ready` reports model readiness.
-- The model is cached after the first load and reused for subsequent requests.
-- Request logs contain method, path, status, and duration, but never request bodies.
-- Model weights, medical data, notebooks, and virtual environments are excluded from Git.
-- Changes land through pull requests on a ruleset-protected `main`; CI runs tests on
-  Ubuntu and Windows, serves a tiny model bundle end to end, and builds the Docker image.
-- The container runs as a non-root user with a health check; host and port settings are
-  validated at startup by `python -m triage_system`.
+PyTorch · Hugging Face Transformers · scikit-learn · FastAPI · Docker · Prometheus ·
+Grafana · Alertmanager · k6 · pytest · GitHub Actions
 
 ## Limitations
 
-- Educational prototype, not a clinically validated system.
-- English description input only.
-- Specialty classification is not diagnosis, urgency assessment, or treatment advice.
-- Calibration and the `uncertain` flag hold for descriptions like the training data.
-  Vague or out-of-scope text (for example "Follow-up visit.") can still receive a
-  confident label: 90% of descriptions from excluded specialties do. The model has no
-  out-of-distribution detection.
-- CPU inference is intended for demonstration and small-volume testing.
-- Public deployment, authentication, rate limiting, and capacity testing are not
-  implemented. Monitoring measures drift, not accuracy in use.
-
-## Project Structure
-
-```text
-src/triage_system/
-├── __main__.py         # Service entry point with validated settings
-├── api.py              # FastAPI routes and browser entry point
-├── config.py           # Environment-backed settings
-├── monitoring.py       # Prometheus metrics and drift windows
-├── model_assets.py     # Local export validation
-├── model_loader.py     # Offline CPU model loading
-├── predictor.py        # Description inference
-├── logging_config.py   # Privacy-safe request logging
-└── web/index.html      # Browser client
-src/triage_training/
-├── data.py             # Cleaning, labeling, deduplication, split validation
-├── baseline.py         # TF-IDF + logistic regression
-├── finetune.py         # PubMedBERT fine-tuning and export
-├── report.py, stats.py # Statistical evaluation report
-├── release.py          # Release gate
-└── __main__.py         # CLI for all of the above
-configs/                # Training, taxonomy, release criteria, monitoring thresholds
-reports/                # Evaluation, release, and drift reports (aggregates only)
-scripts/                # Drift drill traffic and drift window estimate
-tests/                  # Automated tests and synthetic behavioural cases
-Dockerfile              # Reproducible CPU image
-compose.yaml            # Local container startup
-```
+- Internal evaluation only: one data source and rule-assisted labels, no clinical review.
+- No out-of-scope detection: 90% of descriptions from specialties outside the eight
+  groups still receive a confident suggestion.
+- Monitoring detects drift, not accuracy loss; no ground-truth labels arrive in use.
+- Single-process CPU service: one concurrent client within the 500 ms p95 target on the
+  development laptop. No authentication or public deployment.
 
 ## License
 
-This project is intended for educational and portfolio use.
+For educational and portfolio use.
