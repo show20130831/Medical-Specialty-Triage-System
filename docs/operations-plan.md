@@ -332,8 +332,13 @@ whose absence is noticed) is in §14.
 ## 12. Security and Supply Chain
 
 - `pip-audit` runs in CI on every pull request as an advisory job. It reports but does
-  not block merging, because fixes often depend on upstream releases. Dependabot covers
-  Python packages, GitHub Actions, and the Docker base image.
+  not block merging, because fixes often depend on upstream releases. Dependabot
+  version-update pull requests were tried and removed: merging them added a bot to the
+  repository's commit authors, and one proposed a Python 3.10 → 3.14 image that CI does
+  not test. Version updates are applied as reviewed commits instead, with every pin of a
+  package (for example torch in `pyproject.toml`, the Dockerfile, and CI) changed
+  together. GitHub's Dependabot security alerts, which only notify, can be enabled in
+  the repository settings.
 - All Compose ports bind to `127.0.0.1`. The Grafana admin password comes from a local
   `.env` file, which Git ignores; `.env.example` documents the variable.
 - Monitoring images use pinned versions and mount only their configuration and data
@@ -353,7 +358,7 @@ debugging, so about 30% is added on top.
 | M5 | Drills D0, D1, D2 with records | Expected alerts observed in Alertmanager and the alert-sink log; D0 raises none | 1.5 h |
 | M6 | Candidate release and rollback, drill D4 | §10 success criteria met and recorded | 1.5 h |
 | M7 | Load test, capacity in §6, drill D3 | Capacity, latencies, and token counts recorded | 1.5 h |
-| M8 | `pip-audit` advisory job and Dependabot | Job runs on pull requests | 0.5 h |
+| M8 | `pip-audit` advisory job | Job runs on pull requests | 0.5 h |
 
 Total: about 13 hours of estimates, roughly 17 hours with the integration allowance,
 so two working days. Items are ordered so that the core path (M1–M3) is usable on its
@@ -370,7 +375,7 @@ own if later items slip.
 | M5 Drills D0–D2 | Done | `docs/operations/drills/`; D1 found a 500 that should have been 503, now fixed |
 | M6 Release and rollback (D4) | Done, partly | Seeds 1 and 2 both failed the gate (abstention set biased toward the served model); restore rehearsed twice, downtime 68 s then 57 s; archive was missing `monitoring_reference.json`, now fixed |
 | M7 Load test, D3 | Done | `reports/load_test.md`; capacity one client on the development laptop |
-| M8 Dependency audit | Done | Advisory CI job; first run reported jinja2, pytest, and accelerate advisories |
+| M8 Dependency audit | Done | Advisory CI job; first run reported jinja2, pytest, and accelerate advisories; pytest and accelerate since upgraded |
 
 **Definition of done for the implementing pull requests.** Documents that describe the
 removed JSON `/metrics` and `monitor-drift` are updated in the same pull request that
