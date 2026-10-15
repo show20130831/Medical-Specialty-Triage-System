@@ -149,6 +149,7 @@ rehearsed and written up ([drill records](docs/operations/drills/)):
 | D1 | Model bundle missing | Alerts in 2.0 and 7.3 min; **found and fixed a 500 that should have been 503** |
 | D2 | Specialties the model never learned | Drift WARN alert 19 s after the window completed |
 | D3 | Load above capacity | Latency alert after about 6 min; resolved 5 min after load stopped |
+| D4 | Release a new model, then roll back | Both candidates **rejected by the gate** despite better offline scores; restore from archive took 57–68 s and exposed a missing monitoring file in the archive |
 
 ![Grafana dashboard during drill D2](docs/images/grafana-drift-warning.png)
 
