@@ -23,3 +23,15 @@ def test_settings_parse_environment_values():
 def test_invalid_port_is_rejected(value):
     with pytest.raises(ConfigurationError, match="TRIAGE_PORT"):
         load_settings({"TRIAGE_PORT": value})
+
+
+def test_preload_and_monitoring_config_are_parsed():
+    settings = load_settings({"TRIAGE_PRELOAD": "true", "TRIAGE_MONITORING_CONFIG": "~/m.yaml"})
+    assert settings.preload is True
+    assert settings.monitoring_config == Path("~/m.yaml").expanduser()
+    assert load_settings({}).preload is False
+
+
+def test_invalid_preload_is_rejected():
+    with pytest.raises(ConfigurationError, match="TRIAGE_PRELOAD"):
+        load_settings({"TRIAGE_PRELOAD": "maybe"})

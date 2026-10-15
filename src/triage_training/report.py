@@ -185,7 +185,7 @@ def _parity(reference: RunScores, other: RunScores, temperature: float, threshol
 
 def _monitoring_reference(run: RunScores, dataset: PreparedDataset, temperature: float,
                           threshold: float) -> dict:
-    """Expected production distributions, in the same buckets as the /metrics snapshot."""
+    """Expected production distributions, in the buckets the service's drift windows use."""
     test = dataset.splits["test"].set_index("source_row").loc[run.splits["test"]["source_row"]]
     probabilities = calibrate(run.splits["test"]["logits"], temperature)
     top = probabilities.max(axis=1)
@@ -356,7 +356,7 @@ def build_report(config: TrainingConfig, model_dir: Path, baseline_dir: Path,
             "uncertain_threshold": calibration["uncertain_threshold"]["threshold"],
             "target_answered_accuracy": TARGET_ANSWERED_ACCURACY,
         })
-        # Baseline for drift checks against the service's /metrics snapshots.
+        # Reference for the service's in-process drift windows.
         write_json(export_dir / "monitoring_reference.json", _monitoring_reference(
             primary, dataset, calibration["temperature"],
             calibration["uncertain_threshold"]["threshold"]))

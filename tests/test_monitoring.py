@@ -1,13 +1,47 @@
+import threading
+
 import pytest
+from prometheus_client import generate_latest
 
 from triage_system.monitoring import (
-    LENGTH_EDGES, SCORE_EDGES, PredictionMetrics, bucket_index, bucket_labels,
+    LENGTH_EDGES, SCORE_EDGES, DriftMonitor, DriftThresholds, MonitoringMetrics, Window,
+    bucket_index, bucket_labels, evaluate_window, population_stability_index,
 )
-from triage_training.drift import check_drift, population_stability_index
+from triage_training.config import REPO_ROOT
 
-THRESHOLDS = {"min_predictions": 100, "psi": {"warn": 0.1, "alert": 0.25},
-              "uncertain_rate": {"warn": 0.15, "alert": 0.25},
-              "server_error_rate": {"warn": 0.01, "alert": 0.05}}
+LABELS = ("A", "B")
+REFERENCE = {
+    "predictions": 200, "uncertain": 10,
+    "label_counts": {"A": 100, "B": 100},
+    "score_histogram": dict(zip(bucket_labels(SCORE_EDGES), [0, 10, 10, 30, 150])),
+    "length_histogram": dict(zip(bucket_labels(LENGTH_EDGES), [40, 60, 60, 30, 10])),
+}
+
+
+class Clock:
+    def __init__(self):
+        self.now = 1_000.0
+
+    def __call__(self):
+        return self.now
+
+
+def monitor(min_predictions=4, **kwargs):
+    metrics = MonitoringMetrics()
+    clock = Clock()
+    drift = DriftMonitor(metrics, DriftThresholds(min_predictions=min_predictions, **kwargs),
+                         clock=clock)
+    drift.set_reference(REFERENCE)
+    return drift, metrics, clock
+
+
+def value(metrics, name, labels=None):
+    return metrics.registry.get_sample_value(name, labels or {})
+
+
+def windows_closed(metrics):
+    return sum(value(metrics, "triage_drift_windows_total", {"result": r}) or 0
+               for r in ("insufficient_data", "ok", "warn", "alert"))
 
 
 def test_bucket_edges_are_left_closed():
@@ -16,55 +50,101 @@ def test_bucket_edges_are_left_closed():
     assert bucket_labels(LENGTH_EDGES)[0] == "[-inf, 50)"
 
 
-def test_metrics_aggregate_without_per_request_records():
-    metrics = PredictionMetrics(("A", "B"))
-    metrics.record_prediction("A", 0.95, False, 120, 80.0)
-    metrics.record_prediction("B", 0.40, True, 30, 600.0)
-    metrics.record_status(200)
-    metrics.record_status(422)
-    snap = metrics.snapshot()
-    assert snap["predictions"] == 2 and snap["uncertain"] == 1
-    assert snap["label_counts"] == {"A": 1, "B": 1}
-    assert snap["score_histogram"]["[0.9, inf)"] == 1
-    assert snap["length_histogram"]["[-inf, 50)"] == 1
-    assert snap["latency_ms_histogram"]["[500, 1000)"] == 1
-    assert snap["predict_status_counts"] == {"2xx": 1, "4xx": 1}
-    assert set(snap) == {"window_started_utc", "predictions", "uncertain", "label_counts",
-                         "score_histogram", "length_histogram", "latency_ms_histogram",
-                         "predict_status_counts"}
-
-
-def _profile(labels, uncertain=10, errors=0):
-    n = sum(labels.values())
-    return {"predictions": n, "uncertain": uncertain, "label_counts": labels,
-            "score_histogram": {"low": 10, "high": n - 10},
-            "length_histogram": {"short": n // 2, "long": n - n // 2},
-            "predict_status_counts": {"2xx": n, "5xx": errors}}
-
-
-def test_identical_distribution_is_ok():
-    reference = _profile({"A": 100, "B": 100})
-    result = check_drift(_profile({"A": 100, "B": 100}), reference, THRESHOLDS)
-    assert result["status"] == "OK"
+def test_identical_distribution_has_zero_psi():
     assert population_stability_index({"x": 5, "y": 5}, {"x": 1, "y": 1}) == pytest.approx(0)
 
 
-def test_small_window_is_not_judged():
-    result = check_drift(_profile({"A": 20, "B": 20}), _profile({"A": 100, "B": 100}), THRESHOLDS)
-    assert result["status"] == "INSUFFICIENT_DATA"
+def test_shifted_window_raises_status():
+    window = Window(opened=0, labels={"A": 95, "B": 5}, score=[60, 20, 10, 5, 5],
+                    length=[20, 40, 20, 15, 5], uncertain=60, predictions=100)
+    result = evaluate_window(window, REFERENCE, DriftThresholds())
+    assert result["status"] == "alert"
+    assert result["psi"]["label"] > 0.25 and result["uncertain_rate"] == 0.6
 
 
-def test_label_shift_and_uncertainty_raise_alerts():
-    reference = _profile({"A": 100, "B": 100})
-    shifted = _profile({"A": 190, "B": 10}, uncertain=60)
-    result = check_drift(shifted, reference, THRESHOLDS)
-    statuses = {c["check"]: c["status"] for c in result["checks"]}
-    assert statuses["Predicted label distribution"] == "ALERT"
-    assert statuses["Uncertain rate"] == "ALERT"
-    assert result["status"] == "ALERT"
+def test_status_is_not_evaluated_until_a_window_completes():
+    drift, metrics, _ = monitor()
+    drift.record("A", 0.95, False, 120)
+    drift.run_once()
+    assert value(metrics, "triage_drift", {"triage_drift": "not_evaluated"}) == 1
 
 
-def test_server_errors_raise_warning():
-    reference = _profile({"A": 100, "B": 100})
-    result = check_drift(_profile({"A": 100, "B": 100}, errors=4), reference, THRESHOLDS)
-    assert {c["check"]: c["status"] for c in result["checks"]}["Server error rate"] == "WARN"
+def test_full_window_is_evaluated_and_published_without_specialty_values():
+    drift, metrics, _ = monitor()
+    for label in ("A", "B", "A", "B"):
+        drift.record(label, 0.95, False, 120)
+    assert drift.run_once()
+    assert value(metrics, "triage_drift_window_predictions") == 4
+    assert windows_closed(metrics) == 1
+    assert value(metrics, "triage_drift", {"triage_drift": "not_evaluated"}) == 0
+    assert value(metrics, "triage_drift_heartbeat_timestamp_seconds") == 1_000.0
+    exported = generate_latest(metrics.registry).decode()
+    assert 'specialty' not in exported
+    assert '"A"' not in exported and '"B"' not in exported
+
+
+def test_concurrent_predictions_land_in_exactly_one_window():
+    drift, metrics, _ = monitor(min_predictions=50, max_pending=1000)
+    threads = [threading.Thread(target=lambda: [drift.record("A", 0.95, False, 120)
+                                                for _ in range(250)]) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    drift.run_once()
+    assert windows_closed(metrics) == 2000 / 50
+    assert value(metrics, "triage_drift_windows_dropped_total") == 0
+
+
+def test_evaluation_failure_is_counted_and_keeps_heartbeat_stale(monkeypatch):
+    drift, metrics, clock = monitor()
+    drift.run_once()
+    for _ in range(4):
+        drift.record("A", 0.95, False, 120)
+    monkeypatch.setattr("triage_system.monitoring.evaluate_window",
+                        lambda *a: (_ for _ in ()).throw(RuntimeError("boom")))
+    clock.now = 2_000.0
+    assert not drift.run_once()
+    assert value(metrics, "triage_drift_evaluation_failures_total") == 1
+    assert value(metrics, "triage_drift_windows_dropped_total") == 1
+    assert value(metrics, "triage_drift_heartbeat_timestamp_seconds") == 1_000.0
+
+
+def test_full_queue_drops_oldest_window():
+    drift, metrics, _ = monitor(min_predictions=1, max_pending=2)
+    for _ in range(3):
+        drift.record("A", 0.95, False, 120)
+    drift.run_once()
+    assert value(metrics, "triage_drift_windows_dropped_total") == 1
+    assert windows_closed(metrics) == 2
+
+
+def test_unfilled_window_times_out_as_insufficient_data():
+    drift, metrics, clock = monitor(min_predictions=100, insufficient_after_seconds=3600)
+    drift.record("A", 0.95, False, 120)
+    clock.now += 3600
+    assert drift.run_once()
+    assert value(metrics, "triage_drift", {"triage_drift": "insufficient_data"}) == 1
+    assert value(metrics, "triage_drift_windows_total", {"result": "insufficient_data"}) == 1
+
+
+def test_record_never_raises_into_the_prediction_path(monkeypatch):
+    drift, metrics, _ = monitor()
+    monkeypatch.setattr("triage_system.monitoring.bucket_index",
+                        lambda *a: (_ for _ in ()).throw(ValueError("bad")))
+    drift.record("A", 0.95, False, 120)
+    assert value(metrics, "triage_drift_evaluation_failures_total") == 1
+
+
+def test_without_reference_nothing_is_recorded():
+    metrics = MonitoringMetrics()
+    drift = DriftMonitor(metrics, DriftThresholds(min_predictions=1))
+    drift.record("A", 0.95, False, 120)
+    assert drift.run_once()
+    assert windows_closed(metrics) == 0
+
+
+def test_thresholds_load_from_repository_config():
+    thresholds = DriftThresholds.from_yaml(REPO_ROOT / "configs/monitoring.yaml")
+    assert thresholds.min_predictions >= 100
+    assert thresholds.max_pending == 10 and thresholds.psi_alert == 0.25

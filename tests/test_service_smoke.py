@@ -58,6 +58,8 @@ def test_service_serves_a_real_bundle_end_to_end(tiny_bundle):
         assert body["uncertain"] == (body["score"] < 0.65)
         assert sum(item["score"] for item in body["top"]) <= 1.0 + 1e-6
 
-        metrics = client.get("/metrics").json()
-        assert metrics["predictions"] >= 1
-        assert metrics["model_weights_sha256"] == version["weights_sha256"]
+        metrics = client.get("/metrics").text
+        assert "triage_model_loaded 1.0" in metrics
+        assert f'weights_sha256="{version["weights_sha256"]}"' in metrics
+        # The tiny bundle has no monitoring reference, so drift must say "not evaluated".
+        assert 'triage_drift{triage_drift="not_evaluated"} 1.0' in metrics

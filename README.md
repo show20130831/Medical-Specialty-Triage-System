@@ -36,7 +36,8 @@ minutes on one GPU; see [docs/training.md](docs/training.md).
   `uncertain` using a threshold chosen on validation data.
 - Serves a same-origin browser interface at `/`.
 - Exposes `/predict`, `/health`, `/ready`, `/version` (served weights hash, training
-  commit, calibration), and `/metrics` (aggregate counters only) endpoints.
+  commit, calibration), and `/metrics` (Prometheus format; no text and no per-specialty
+  values) endpoints.
 - Loads the local model once per API process in CPU evaluation mode.
 - Accepts descriptions up to 1,000 characters (training maximum 433), so nothing is
   truncated; rejects blank or longer input with `422` and oversized bodies with `413`;
@@ -131,12 +132,13 @@ Before release, `python -m triage_training validate-model` checks a bundle again
 synthetic behavioural cases, and CPU latency. The served bundle passes
 ([release report](reports/release_validation.md)).
 
-In use, `/metrics` exposes aggregate counters only (no text, no per-request records), and
-`python -m triage_training monitor-drift` compares a snapshot with the bundle's test-set
-reference. Replaying the test split reports OK; traffic from specialties the model never
-learned reports only WARN, which shows how weakly out-of-scope input surfaces
-([demo](reports/drift_demo/)). Without ground-truth labels, drift is a signal of change,
-not proof of lower accuracy.
+In use, `/metrics` exports Prometheus metrics: request counts, latency, model state, and
+the drift result of the last completed 400-prediction window. The service evaluates
+drift itself in a separate thread and never exports per-specialty counts. The window
+size was validated: at 100 predictions, 64% of drift-free windows raised a false
+warning ([estimate](reports/drift_window_estimate.md)). Without ground-truth labels,
+drift is a signal of change, not proof of lower accuracy. The monitoring stack, alerts,
+and drills are planned in [docs/operations-plan.md](docs/operations-plan.md).
 
 The runbook, rollback procedure, and retraining rules are in
 [docs/validation-and-operations.md](docs/validation-and-operations.md).
@@ -240,7 +242,7 @@ src/triage_system/
 ├── __main__.py         # Service entry point with validated settings
 ├── api.py              # FastAPI routes and browser entry point
 ├── config.py           # Environment-backed settings
-├── monitoring.py       # Aggregate prediction metrics
+├── monitoring.py       # Prometheus metrics and drift windows
 ├── model_assets.py     # Local export validation
 ├── model_loader.py     # Offline CPU model loading
 ├── predictor.py        # Description inference
@@ -252,11 +254,10 @@ src/triage_training/
 ├── finetune.py         # PubMedBERT fine-tuning and export
 ├── report.py, stats.py # Statistical evaluation report
 ├── release.py          # Release gate
-├── drift.py            # Drift check against the reference profile
 └── __main__.py         # CLI for all of the above
 configs/                # Training, taxonomy, release criteria, monitoring thresholds
 reports/                # Evaluation, release, and drift reports (aggregates only)
-scripts/                # Traffic simulation for the drift demonstration
+scripts/                # Drift drill traffic and drift window estimate
 tests/                  # Automated tests and synthetic behavioural cases
 Dockerfile              # Reproducible CPU image
 compose.yaml            # Local container startup

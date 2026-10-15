@@ -2,10 +2,13 @@ services:
   api:
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       TRIAGE_MODEL_DIR: /models/pubmedbert_description
       TRIAGE_HOST: 0.0.0.0
       TRIAGE_PORT: 8000
+      TRIAGE_PRELOAD: "true"
+      TRIAGE_MONITORING_CONFIG: /config/monitoring.yaml
     volumes:
       - ./models:/models:ro
+      - ./configs/monitoring.yaml:/config/monitoring.yaml:ro

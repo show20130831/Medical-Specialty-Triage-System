@@ -14,7 +14,7 @@ fixed in advance). It does not claim compliance with any regulation or standard.
 ```text
  train ──▶ evaluate ──▶ ① release gate ──▶ ② deploy + identify ──▶ ③ monitor ──▶ ④ respond
              (report)     validate-model       /version, hashes      /metrics,        runbook,
-                                                                     monitor-drift    rollback
+                                                                     drift windows    rollback
    ▲                                                                                   │
    └──────────── retraining under §6 must pass the same release gate ◀─────────────────┘
 ```
@@ -68,21 +68,28 @@ passes; see [the release report](../reports/release_validation.md).
 | Which code and data produced them? | `run_manifest.json`: training commit, configuration, dataset and taxonomy SHA-256 |
 | Which evaluation approved them? | `model_run` in `reports/model_evaluation.json`, checked by the release gate |
 | Which calibration is active? | `GET /version` → temperature and abstain threshold |
-| Which model produced a metrics window? | `model_weights_sha256` in every `/metrics` snapshot |
+| Which model is behind the metrics? | `triage_model_info` metric with the weights hash and training commit |
 
 Bundles are archived in the private Hugging Face model repository; each upload is a
 revision that can be restored for rollback (§5).
 
 ## 4. Monitoring
 
+The design is detailed in the [operations plan](operations-plan.md); this section
+summarises what the service does.
+
 ### Design principles
 
-- **Aggregate only.** The service keeps in-memory counters and fixed-bucket histograms.
-  There are no per-request records, even without text, because label, score, length, and
-  time together could still describe an individual request.
-- **Short retention.** Counters reset when the process restarts. Operators save
-  snapshots for drift checks; saved snapshots should be kept no longer than 90 days and
-  only by people who operate the service.
+- **No per-specialty output.** The service never exports per-specialty counts or shares,
+  even aggregated, because counts read at two moments can reveal the label of a single
+  request. Model behaviour is exported only as the drift result of the last completed
+  window: PSI values, the uncertain rate, and a status.
+- **Windows in memory, then discarded.** Each prediction adds to an in-memory window of
+  aggregate counts. When the window holds 400 predictions, a dedicated evaluator thread
+  compares it with the bundle's reference and the counts are dropped. Monitoring can
+  neither slow nor fail a prediction.
+- **Honest states.** The drift status is "not evaluated" after every start, "insufficient
+  data" if a window does not fill within 24 hours, and otherwise OK, WARN, or ALERT.
 - **Signals, not verdicts.** No ground-truth labels arrive after a prediction, so these
   checks show that inputs or outputs changed. They cannot show that accuracy dropped.
   Measuring accuracy in use needs reviewed labels (§8).
@@ -91,43 +98,31 @@ revision that can be restored for rollback (§5).
 
 | Signal | Source | Threshold (WARN / ALERT) | What it can indicate | Limitation |
 | --- | --- | --- | --- | --- |
-| Predicted label distribution | `/metrics` vs reference, PSI | 0.10 / 0.25 | Different case mix or out-of-scope input | A real change in case mix looks the same |
-| Confidence distribution | PSI | 0.10 / 0.25 | Inputs less like training data | Confident errors stay invisible |
-| Input length distribution | PSI | 0.10 / 0.25 | New document types or misuse | Weak signal for short inputs |
-| Uncertain rate | rate | 15% / 25% (reference 7.5%) | Ambiguous or unfamiliar inputs | Out-of-scope input barely moves it (below) |
-| Server error rate | share of 5xx on `/predict` | 1% / 5% | Service or model failure | — |
-| Latency | `/metrics` histogram | Read manually; not checked by `monitor-drift` yet | Capacity problems | Histogram resolution only |
+| Predicted label distribution | Window PSI against the reference | 0.10 / 0.25 | Different case mix or out-of-scope input | A real change in case mix looks the same |
+| Confidence distribution | Window PSI | 0.10 / 0.25 | Inputs less like training data | Confident errors stay invisible |
+| Input length distribution | Window PSI | 0.10 / 0.25 | New document types or misuse | Weak signal for short inputs |
+| Uncertain rate | Window rate | 15% / 25% (reference 7.5%) | Ambiguous or unfamiliar inputs | Out-of-scope input barely moves it |
+| Server errors, latency, model state | Prometheus metrics at `/metrics` | Alert rules in the operations plan §7 | Service or capacity problems | — |
 
 The reference (`monitoring_reference.json` in the bundle) is the calibrated test-set
-prediction profile in the same buckets. Windows with fewer than 100 predictions are
-reported as insufficient data. Thresholds live in `configs/monitoring.yaml`.
+prediction profile in the same buckets. Thresholds live in `configs/monitoring.yaml`.
 
-### Running a check
+### Window size
+
+At 100 predictions, 64% of windows drawn from the validation split, which has no drift,
+reached WARN, almost all from label PSI. A 400-prediction window brings this to 4.6%
+([estimate](../reports/drift_window_estimate.md)). Detection is therefore slower and
+low traffic more often ends in "insufficient data", a trade-off accepted to avoid
+constant false alarms.
+
+### Reading the current state
 
 ```bash
-curl -s http://127.0.0.1:8000/metrics > snapshot.json
-python -m triage_training monitor-drift --snapshot snapshot.json \
-    --reference models/pubmedbert_description/monitoring_reference.json
+curl -s http://127.0.0.1:8000/metrics | grep '^triage_drift'
 ```
 
-Exit code 0 means OK or insufficient data, 1 WARN, 2 ALERT, so a scheduler can raise a
-notification without parsing the report.
-
-### Demonstration
-
-`scripts/simulate_traffic.py` replays descriptions against a running service.
-
-| Scenario | Label PSI | Confidence PSI | Uncertain rate | Status |
-| --- | --- | --- | --- | --- |
-| [Test split replay](../reports/drift_demo/in-distribution/drift_check.md) (398) | 0.000 | 0.000 | 7.3% | OK |
-| [Excluded specialties](../reports/drift_demo/excluded-specialties/drift_check.md) (400) | 0.197 | 0.101 | 12.0% | WARN |
-
-The replay reproduces the reference exactly, which checks the monitoring pipeline
-itself. Traffic from specialties the model never learned raises only a warning: the
-model assigns such input confidently to the existing groups, so the uncertain rate
-barely moves. Thresholds were not tuned to make this demonstration alert. Out-of-scope
-input is a documented gap that monitoring detects weakly and the model does not detect
-at all.
+Drift drills replace the earlier manual demonstration; their records are in
+`docs/operations/drills/`.
 
 ## 5. Response Runbook
 
@@ -180,7 +175,7 @@ up-to-date branch, no force pushes.
 | --- | --- | --- |
 | Release validation | Criteria file, behavioural set, latency, gate report | Gate in CI using a read-only token for the private bundle; larger behavioural set written blind |
 | Identification | `/version`, weights hash, evaluation linkage | Signed release tags in the archive |
-| Monitoring | Aggregate `/metrics`, reference profile, drift check, demonstration | Scheduled checks with notifications; dashboards |
+| Monitoring | Prometheus `/metrics`, in-process drift windows with a validated size, reference profile | Dashboards, alert rules, and drills: [operations plan](operations-plan.md) |
 | Accuracy in use | — | Reviewed label sample from real use to measure accuracy, not just drift |
 | Out-of-scope input | Measured and documented | An out-of-distribution detector or an "other" class, validated on held-out specialties |
 | Response | Runbook, rollback procedure, change control | Canary or shadow deployment before full rollout |

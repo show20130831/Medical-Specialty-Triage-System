@@ -69,13 +69,6 @@ def main(argv: list[str] | None = None) -> None:
     gate.add_argument("--out-of-taxonomy", action="store_true",
                       help="also score excluded-specialty descriptions from the raw data")
 
-    drift = commands.add_parser("monitor-drift", help="compare a /metrics snapshot with reference")
-    drift.add_argument("--snapshot", type=Path, required=True, help="JSON saved from GET /metrics")
-    drift.add_argument("--reference", type=Path, required=True,
-                       help="monitoring_reference.json from the served bundle")
-    drift.add_argument("--thresholds", type=Path, default=Path("configs/monitoring.yaml"))
-    drift.add_argument("--out", type=Path, default=Path("reports"))
-
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
@@ -106,12 +99,6 @@ def main(argv: list[str] | None = None) -> None:
             summarize_splits(config, args.run, args.out)
             logger.info("Wrote split variation report to %s", args.out)
             return
-
-        if args.command == "monitor-drift":
-            from triage_training.drift import run_drift_check
-            result = run_drift_check(args.snapshot, args.reference, args.thresholds, args.out)
-            logger.info("Drift status: %s (report in %s)", result["status"], args.out)
-            sys.exit({"WARN": 1, "ALERT": 2}.get(result["status"], 0))
 
         if args.command == "report":
             from triage_training.report import build_report
