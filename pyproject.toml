@@ -9,7 +9,7 @@ description = "A description-based medical specialty classification service."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "fastapi==0.141.1",
+    "fastapi==0.143.0",
     "prometheus-client==0.25.0",
     "PyYAML==6.0.3",
     "uvicorn==0.53.0",
