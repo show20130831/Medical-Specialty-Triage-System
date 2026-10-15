@@ -1,0 +1,23 @@
+# Drill copy of monitoring.yaml: identical thresholds, 1-minute evaluator interval so
+# heartbeat and timeout behaviour can be observed within a drill. Not for normal use.
+#
+# Drift thresholds for the in-service evaluator (triage_system.monitoring). Mount this
+# file read-only and point TRIAGE_MONITORING_CONFIG at it; the code has matching
+# defaults. Without ground-truth labels these checks signal that inputs or outputs
+# changed; they cannot show that accuracy dropped. Server errors and latency are alerted
+# from Prometheus rules, not here.
+
+window:
+  min_predictions: 400          # 4.6% false WARN on validation windows; see reports/drift_window_estimate.md
+  insufficient_after_hours: 24  # an unfilled window closes as insufficient data
+  max_pending: 10               # completed windows waiting for the evaluator
+
+evaluation_interval_seconds: 60   # drills only: faster heartbeat and timeout checks
+
+psi:                          # population stability index; 0.10 / 0.25 are common conventions
+  warn: 0.10
+  alert: 0.25
+
+uncertain_rate:               # reference test rate is 7.5%
+  warn: 0.15
+  alert: 0.25

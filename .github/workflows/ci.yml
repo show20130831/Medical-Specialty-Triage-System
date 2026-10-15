@@ -83,3 +83,28 @@ jobs:
           test "$(docker exec triage whoami)" = "app"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/ready)" = "503"
           docker logs triage
+
+  monitoring-config:
+    name: Monitoring configuration check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate Prometheus configuration and alert rules
+        run: |
+          docker run --rm --entrypoint promtool -v "$PWD/deploy/monitoring:/m:ro" \
+            prom/prometheus:v3.5.0 check rules /m/alerts.yml
+          docker run --rm --entrypoint promtool -v "$PWD/deploy/monitoring:/etc/prometheus:ro" \
+            prom/prometheus:v3.5.0 check config /etc/prometheus/prometheus.yml
+
+      - name: Validate Alertmanager configuration
+        run: |
+          docker run --rm --entrypoint amtool -v "$PWD/deploy/monitoring:/m:ro" \
+            prom/alertmanager:v0.28.1 check-config /m/alertmanager.yml
+
+      - name: Validate Compose file
+        run: docker compose --profile monitoring config --quiet

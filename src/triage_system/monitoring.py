@@ -75,6 +75,9 @@ class MonitoringMetrics:
         self.drift_heartbeat = Gauge("triage_drift_heartbeat_timestamp_seconds",
                                      "When the evaluator last completed a run",
                                      registry=registry)
+        self.drift_interval = Gauge("triage_drift_evaluation_interval_seconds",
+                                    "Evaluator interval, so alert rules can judge staleness",
+                                    registry=registry)
         self.drift_windows = Counter("triage_drift_windows", "Closed windows by result",
                                      ["result"], registry=registry)
         self.drift_failures = Counter("triage_drift_evaluation_failures",
@@ -164,6 +167,7 @@ class DriftMonitor:
                  clock=time.time) -> None:
         self.metrics = metrics
         self.thresholds = thresholds
+        metrics.drift_interval.set(thresholds.interval_seconds)
         self._clock = clock
         self._lock = threading.Lock()
         self._reference: dict | None = None

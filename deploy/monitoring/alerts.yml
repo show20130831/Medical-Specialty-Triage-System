@@ -1,0 +1,99 @@
+# Alert rules from docs/operations-plan.md §7. Each runbook_url points at the response
+# for that event in docs/validation-and-operations.md §5.
+groups:
+  - name: triage-service
+    rules:
+      - alert: TriageApiDown
+        expr: up{job="triage-api"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: The API is not answering Prometheus scrapes.
+          runbook_url: https://github.com/show20130831/Medical-Specialty-Triage-System/blob/main/docs/validation-and-operations.md#5-response-runbook
+
+      - alert: TriageModelNotLoaded
+        expr: triage_model_loaded == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: The API is up but the model is not loaded; /predict returns 503.
+          runbook_url: https://github.com/show20130831/Medical-Specialty-Triage-System/blob/main/docs/validation-and-operations.md#5-response-runbook
+
+      - alert: TriageServerErrorsWarning
+        expr: |
+          (
+            sum(increase(triage_requests_total{route="/predict", status_class="5xx"}[15m]))
+              / sum(increase(triage_requests_total{route="/predict"}[15m])) > 0.01
+          )
+          and sum(increase(triage_requests_total{route="/predict"}[15m])) >= 100
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "More than 1% of /predict responses were 5xx over 15 minutes ({{ $value | humanizePercentage }})."
+          runbook_url: https://github.com/show20130831/Medical-Specialty-Triage-System/blob/main/docs/validation-and-operations.md#5-response-runbook
+
+      - alert: TriageServerErrorsCritical
+        expr: |
+          (
+            sum(increase(triage_requests_total{route="/predict", status_class="5xx"}[5m]))
+              / sum(increase(triage_requests_total{route="/predict"}[5m])) > 0.05
+          )
+          and sum(increase(triage_requests_total{route="/predict"}[5m])) >= 20
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "More than 5% of /predict responses were 5xx over 5 minutes ({{ $value | humanizePercentage }})."
+          runbook_url: https://github.com/show20130831/Medical-Specialty-Triage-System/blob/main/docs/validation-and-operations.md#5-response-runbook
+
+      - alert: TriageHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(triage_request_duration_seconds_bucket{route="/predict"}[5m]))) > 0.5
+          and sum(increase(triage_request_duration_seconds_count{route="/predict"}[5m])) >= 50
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "/predict p95 latency is above 500 ms ({{ $value | humanizeDuration }})."
+          runbook_url: https://github.com/show20130831/Medical-Specialty-Triage-System/blob/main/docs/validation-and-operations.md#5-response-runbook
+
+  - name: triage-drift
+    rules:
+      - alert: TriageDriftWarning
+        expr: triage_drift{triage_drift="warn"} == 1
+        labels: {severity: warning}
+        annotations:
+          summary: The last completed window drifted from the reference (WARN).
+          description: >-
+            {{ range query "triage_drift_psi" }}{{ .Labels.check }} PSI {{ .Value | printf "%.3f" }};
+            {{ end }}uncertain rate {{ with query "triage_drift_uncertain_rate" }}{{ . | first | value | humanizePercentage }}{{ end }}.
+            A signal of change, not proof of lower accuracy.
+          runbook_url: https://github.com/show20130831/Medical-Specialty-Triage-System/blob/main/docs/validation-and-operations.md#5-response-runbook
+
+      - alert: TriageDriftAlert
+        expr: triage_drift{triage_drift="alert"} == 1
+        labels: {severity: critical}
+        annotations:
+          summary: The last completed window drifted strongly from the reference (ALERT).
+          description: >-
+            {{ range query "triage_drift_psi" }}{{ .Labels.check }} PSI {{ .Value | printf "%.3f" }};
+            {{ end }}uncertain rate {{ with query "triage_drift_uncertain_rate" }}{{ . | first | value | humanizePercentage }}{{ end }}.
+          runbook_url: https://github.com/show20130831/Medical-Specialty-Triage-System/blob/main/docs/validation-and-operations.md#5-response-runbook
+
+      - alert: TriageDriftEvaluatorStale
+        expr: |
+          time() - triage_drift_heartbeat_timestamp_seconds
+            > 3 * triage_drift_evaluation_interval_seconds
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: The drift evaluator has not completed a run for three intervals.
+          runbook_url: https://github.com/show20130831/Medical-Specialty-Triage-System/blob/main/docs/validation-and-operations.md#5-response-runbook
+
+      - alert: TriageDriftEvaluationFailed
+        expr: |
+          increase(triage_drift_evaluation_failures_total[15m]) > 0
+          or increase(triage_drift_windows_dropped_total[15m]) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: A drift evaluation failed or a window was dropped in the last 15 minutes.
+          runbook_url: https://github.com/show20130831/Medical-Specialty-Triage-System/blob/main/docs/validation-and-operations.md#5-response-runbook

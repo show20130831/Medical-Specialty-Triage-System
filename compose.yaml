@@ -1,3 +1,6 @@
+# Plain `docker compose up` starts only the API. `docker compose --profile monitoring up`
+# adds Prometheus, Alertmanager, alert-sink, and Grafana (docs/operations-plan.md §4).
+# Every published port binds to localhost.
 services:
   api:
     build: .
@@ -11,4 +14,52 @@ services:
       TRIAGE_MONITORING_CONFIG: /config/monitoring.yaml
     volumes:
       - ./models:/models:ro
-      - ./configs/monitoring.yaml:/config/monitoring.yaml:ro
+      # Drills set TRIAGE_MONITORING_FILE=./configs/monitoring.drill.yaml (1-minute interval).
+      - ${TRIAGE_MONITORING_FILE:-./configs/monitoring.yaml}:/config/monitoring.yaml:ro
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [monitoring]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    profiles: [monitoring]
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    ports:
+      - "127.0.0.1:9093:9093"
+    volumes:
+      - ./deploy/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+
+  alert-sink:
+    image: python:3.10-slim
+    profiles: [monitoring]
+    command: ["python", "-u", "/app/alert_sink.py"]
+    volumes:
+      - ./deploy/monitoring/alert_sink.py:/app/alert_sink.py:ro
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    profiles: [monitoring]
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/triage.json
+    volumes:
+      - ./deploy/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+volumes:
+  prometheus-data:
