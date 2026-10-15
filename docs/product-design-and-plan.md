@@ -33,7 +33,7 @@ technology. It must show the whole ML lifecycle, not only model training:
 | Integrating models into products | FastAPI service and browser client with asset validation (§9–§11) |
 | Quality assurance before deployment | 81 automated tests, CI on Ubuntu and Windows, reload and parity checks (§14) |
 | Data governance | Text-free artifacts, privacy-safe logging, license-driven hosting decision (§12–§13) |
-| AI DevOps, monitoring | Release gate, `/version`, aggregate `/metrics`, drift check, runbook, CI with service smoke test and Docker build (§14, §17) |
+| AI DevOps, monitoring | Release gate, `/version`, Prometheus `/metrics`, in-process drift windows with a validated size, runbook, CI with service smoke test and Docker build (§14, §17) |
 
 ### Product goal
 
@@ -296,7 +296,7 @@ clinician-curated cases, or lay-language text) has been done.
 | Logging middleware | `triage_system.logging_config` | Method, path, status, duration; never request bodies |
 | Monitoring | `triage_system.monitoring` | In-memory aggregate counters and histograms; no per-request records |
 | Release gate | `triage_training.release` | Offline criteria, behavioural cases, CPU latency, pass/fail report |
-| Drift check | `triage_training.drift` | PSI and rate checks of `/metrics` snapshots against the reference profile |
+| Drift windows | `triage_system.monitoring` | Prometheus metrics; in-memory windows evaluated by a separate thread against the reference profile; no per-specialty output |
 | Browser client | `triage_system/web/index.html` | Input, examples, ranked results, uncertain message |
 | Packaging | `Dockerfile`, `compose.yaml` | CPU image without weights; model mounted read-only |
 
@@ -321,7 +321,7 @@ values stop startup with a clear message.
 | `GET /ready` | Model can be loaded and serve | 200 `{"status": "ready"}`; 503 with reason |
 | `POST /predict` | Classify one description | 200; 422 blank or over 1,000 characters; 413 body over 16 KB; 411 no `Content-Length`; 503 model unavailable; 500 prediction failure |
 | `GET /version` | Service version, served weights SHA-256, training commit, calibration | 200; 503 model unavailable |
-| `GET /metrics` | Aggregate counters since process start (labels, uncertain, score, length, latency, status) | 200 |
+| `GET /metrics` | Prometheus text: requests, latency, model state and identity, drift result of the last completed window | 200 |
 | `GET /docs` | OpenAPI documentation (FastAPI default) | 200 |
 
 ```json
@@ -347,7 +347,7 @@ are expected to show it as a suggestion for manual review, as the browser client
 | `model.safetensors`, `config.json`, `tokenizer.json`, `tokenizer_config.json` | Model and tokenizer |
 | `training_config.json` | Serving contract (input type, 512 tokens, labels) and hyperparameters |
 | `calibration.json` | Temperature and abstain threshold (optional; defaults to uncalibrated, no abstention) |
-| `monitoring_reference.json` | Test-set prediction profile in `/metrics` buckets, for drift checks |
+| `monitoring_reference.json` | Test-set prediction profile in the drift window buckets |
 | `metrics.json`, `data_report.json`, `run_manifest.json`, `reload_check.json` | Evaluation, data audit, provenance, integrity |
 
 - The bundle is produced on the training server and copied to the serving machine; the
@@ -375,8 +375,9 @@ Implemented:
 - The Docker Compose model mount is read-only; model loading uses local files only with
   remote code disabled.
 - Demonstrations use synthetic descriptions only.
-- Monitoring keeps aggregate counters in memory only; no per-request records, even
-  without text. Saved snapshots are kept for at most 90 days by operators only.
+- Monitoring exports no per-specialty values: drift windows are held in memory, reduced
+  to PSI values, an uncertain rate, and a status, then discarded. Prometheus keeps
+  operational metrics and drift results for 15 days.
 - Request bodies over 16 KB are rejected before parsing; the container runs as a
   non-root user with a health check.
 
@@ -412,11 +413,12 @@ redistributed.
   checks dependency compatibility; serves a tiny randomly initialised BERT bundle through
   every route; and builds the Docker image, checking the non-root user, `/health`, and
   `/ready`. CI does not need the dataset, a GPU, or the private model.
-- 101 tests cover API behaviour and status codes, input and body limits, model asset and
+- 112 tests cover API behaviour and status codes, input and body limits, model asset and
   calibration validation, offline loading contracts, prediction ranking and abstention,
   configuration and startup, privacy-safe logging and metrics, data pipeline invariants,
   baseline, statistics (checked against scikit-learn and known values), report
-  generation, split variation, release gate, and drift checks.
+  generation, split variation, release gate, Prometheus metrics, and drift windows
+  (concurrency, failure isolation, timeouts).
 - Not yet in CI: the release gate against the real model (it needs the private bundle),
   linting.
 - A repository ruleset protects `main`: changes must arrive through a pull request,
@@ -444,7 +446,7 @@ Done outside Git:
 In review:
 
 - Product design document and results wording (#22)
-- Validation and operations MVP: release gate, `/version`, `/metrics`, drift check,
+- Validation and operations MVP: release gate, `/version`, metrics, drift check,
   runbook, input and body limits, startup validation, non-root Docker, CI jobs
 
 Not done: see §16 and §17.
@@ -472,7 +474,7 @@ Not done: see §16 and §17.
 
 Described in [validation-and-operations.md](validation-and-operations.md): release gate
 with criteria in configuration, behavioural cases and latency; `/version` and evaluation
-linkage; aggregate `/metrics`, reference profile, and drift check with a demonstration;
+linkage; Prometheus metrics, reference profile, and in-process drift windows;
 runbook, rollback, and change control for retraining.
 
 ### Later

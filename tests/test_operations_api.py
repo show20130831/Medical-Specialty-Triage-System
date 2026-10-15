@@ -5,9 +5,15 @@ from fastapi.testclient import TestClient
 
 from triage_system import api
 from triage_system.model_assets import ModelAssets
+from triage_system.monitoring import LENGTH_EDGES, SCORE_EDGES, bucket_labels
 from triage_system.predictor import Prediction
 
 TOP = (("Orthopedics", 0.9), ("Neurology", 0.05), ("General Medicine", 0.02))
+REFERENCE = {
+    "predictions": 2, "uncertain": 0, "label_counts": {"Orthopedics": 2},
+    "score_histogram": dict(zip(bucket_labels(SCORE_EDGES), [0, 0, 0, 0, 2])),
+    "length_histogram": dict(zip(bucket_labels(LENGTH_EDGES), [2, 0, 0, 0, 0])),
+}
 
 
 @pytest.fixture
@@ -35,18 +41,58 @@ def test_version_identifies_weights_commit_and_calibration(served):
     assert body["service_version"]
 
 
-def test_metrics_count_predictions_and_statuses_without_text(served):
+def _sample(name, labels=None):
+    return api.METRICS.registry.get_sample_value(name, labels or {}) or 0
+
+
+def test_metrics_expose_operational_counters_without_text_or_specialties(served):
+    before = _sample("triage_requests_total", {"route": "/predict", "status_class": "2xx"})
+    rejected = _sample("triage_requests_total", {"route": "/predict", "status_class": "4xx"})
     with TestClient(api.app) as client:
-        before = client.get("/metrics").json()
         client.post("/predict", json={"description": "private knee text"})
         client.post("/predict", json={"description": "   "})
-        after = client.get("/metrics").json()
-    assert after["predictions"] - before["predictions"] == 1
-    assert after["label_counts"]["Orthopedics"] - before["label_counts"]["Orthopedics"] == 1
-    assert after["predict_status_counts"]["2xx"] - before["predict_status_counts"].get("2xx", 0) == 1
-    assert after["predict_status_counts"]["4xx"] - before["predict_status_counts"].get("4xx", 0) == 1
-    assert after["model_weights_sha256"] == "f" * 64
-    assert "private knee text" not in str(after)
+        response = client.get("/metrics")
+    body = response.text
+    assert response.headers["content-type"].startswith("text/plain")
+    assert _sample("triage_requests_total", {"route": "/predict", "status_class": "2xx"})         == before + 1
+    assert _sample("triage_requests_total", {"route": "/predict", "status_class": "4xx"})         == rejected + 1
+    assert "triage_request_duration_seconds_bucket" in body
+    assert "private knee text" not in body
+    assert not any(name in body for name in ("Orthopedics", "Neurology", "General Medicine"))
+
+
+def test_unknown_paths_share_one_route_label():
+    with TestClient(api.app) as client:
+        client.get("/no/such/page/12345")
+        body = client.get("/metrics").text
+    assert _sample("triage_requests_total", {"route": "other", "status_class": "4xx"}) >= 1
+    assert "12345" not in body
+
+
+def test_drift_failure_never_changes_the_prediction_response(served, monkeypatch):
+    api.DRIFT.set_reference(REFERENCE)
+    failures = _sample("triage_drift_evaluation_failures_total")
+    monkeypatch.setattr("triage_system.monitoring.bucket_index",
+                        lambda *a: (_ for _ in ()).throw(ValueError("bad")))
+    try:
+        with TestClient(api.app) as client:
+            response = client.post("/predict", json={"description": "knee pain"})
+    finally:
+        api.DRIFT.set_reference(None)
+    assert response.status_code == 200 and response.json()["label"] == "Orthopedics"
+    assert _sample("triage_drift_evaluation_failures_total") == failures + 1
+
+
+def test_failed_preload_keeps_health_up_and_model_unloaded(monkeypatch):
+    from triage_system.model_loader import ModelLoadError
+
+    api.METRICS.model_loaded.set(0)
+    monkeypatch.setattr(api, "_loaded_model",
+                        lambda: (_ for _ in ()).throw(ModelLoadError("missing")))
+    api._preload()
+    with TestClient(api.app) as client:
+        assert client.get("/health").status_code == 200
+    assert _sample("triage_model_loaded") == 0
 
 
 def test_description_limit_matches_training_distribution():

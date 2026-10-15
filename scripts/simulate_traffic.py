@@ -1,17 +1,19 @@
-"""Replay descriptions against a running service, then save its /metrics snapshot.
+"""Replay descriptions against a running service for drift drills.
 
-Used to demonstrate the drift check locally:
+    python scripts/simulate_traffic.py --scenario in-distribution --total 400
+    python scripts/simulate_traffic.py --scenario excluded-specialties
 
-    python scripts/simulate_traffic.py --scenario in-distribution --out snapshot.json
-    python scripts/simulate_traffic.py --scenario excluded-specialties --out snapshot.json
-
-`in-distribution` replays the prepared test split; `excluded-specialties` replays
-descriptions from MTSamples specialties the model was not trained on. Both read local
-data only and never print or save description text; the snapshot holds counters only.
-Restart the service between scenarios so each snapshot covers one scenario.
+`in-distribution` replays the prepared test split (cycling through it when --total is
+larger, as drill D0 needs one 400-prediction window from 398 rows); `excluded-specialties`
+replays descriptions from MTSamples specialties the model was not trained on (drill D2).
+Both read local data only and never print or save description text. Afterwards the
+script prints the service's drift metrics, which hold only the last completed window's
+PSI values, uncertain rate, and status. Restart the service before a drill so its
+windows hold only drill traffic.
 """
 
 import argparse
+import itertools
 import json
 import urllib.request
 from pathlib import Path
@@ -22,17 +24,17 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def descriptions(scenario: str, limit: int) -> list[str]:
+def descriptions(scenario: str) -> list[str]:
     if scenario == "in-distribution":
         test = pd.read_csv(REPO_ROOT / "outputs/data/dedup_seed42/test.csv", keep_default_na=False)
-        return test["description"].tolist()[:limit]
+        return test["description"].tolist()
     taxonomy = yaml.safe_load((REPO_ROOT / "configs/taxonomy.yaml").read_text(encoding="utf-8"))
     known = set(taxonomy["direct_mapping"]) | set(taxonomy["keyword_reclassification_specialties"])
     raw = pd.read_csv(REPO_ROOT / "data/mtsamples.csv", encoding="cp1252",
                       usecols=["description", "medical_specialty"]).dropna()
     excluded = raw[~raw["medical_specialty"].str.strip().isin(known)]
     texts = excluded["description"].str.strip().drop_duplicates()
-    return texts[texts.str.len().between(1, 1000)].tolist()[:limit]
+    return texts[texts.str.len().between(1, 1000)].tolist()
 
 
 def post(base_url: str, text: str) -> None:
@@ -48,18 +50,18 @@ def main() -> None:
     parser.add_argument("--scenario", choices=["in-distribution", "excluded-specialties"],
                         required=True)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
-    parser.add_argument("--limit", type=int, default=400)
-    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--total", type=int, help="requests to send (default: each text once)")
     args = parser.parse_args()
 
-    texts = descriptions(args.scenario, args.limit)
-    for text in texts:
+    texts = descriptions(args.scenario)
+    total = args.total or len(texts)
+    for text in itertools.islice(itertools.cycle(texts), total):
         post(args.base_url, text)
     with urllib.request.urlopen(f"{args.base_url}/metrics") as response:
-        snapshot = json.load(response)
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(snapshot, indent=2) + "\n", encoding="utf-8")
-    print(f"Sent {len(texts)} {args.scenario} requests; snapshot saved to {args.out}")
+        drift = [line for line in response.read().decode().splitlines()
+                 if line.startswith("triage_drift") and not line.startswith("#")]
+    print(f"Sent {total} {args.scenario} requests. Drift metrics:")
+    print("\n".join(drift))
 
 
 if __name__ == "__main__":

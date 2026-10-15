@@ -1,9 +1,15 @@
-# Drift and health thresholds for `python -m triage_training monitor-drift`.
-# Inputs are aggregate /metrics snapshots compared with the bundle's
-# monitoring_reference.json. Without ground-truth labels these checks signal that
-# inputs or outputs changed; they cannot show that accuracy dropped.
+# Drift thresholds for the in-service evaluator (triage_system.monitoring). Mount this
+# file read-only and point TRIAGE_MONITORING_CONFIG at it; the code has matching
+# defaults. Without ground-truth labels these checks signal that inputs or outputs
+# changed; they cannot show that accuracy dropped. Server errors and latency are alerted
+# from Prometheus rules, not here.
 
-min_predictions: 100          # below this the window is reported as insufficient data
+window:
+  min_predictions: 400          # 4.6% false WARN on validation windows; see reports/drift_window_estimate.md
+  insufficient_after_hours: 24  # an unfilled window closes as insufficient data
+  max_pending: 10               # completed windows waiting for the evaluator
+
+evaluation_interval_seconds: 900  # timeout check and heartbeat; full windows wake it now
 
 psi:                          # population stability index; 0.10 / 0.25 are common conventions
   warn: 0.10
@@ -12,7 +18,3 @@ psi:                          # population stability index; 0.10 / 0.25 are comm
 uncertain_rate:               # reference test rate is 7.5%
   warn: 0.15
   alert: 0.25
-
-server_error_rate:            # share of /predict responses with 5xx status
-  warn: 0.01
-  alert: 0.05

@@ -28,7 +28,6 @@ mtsamples.csv
 | `python -m triage_training report` | `reports/model_evaluation.md` statistical evaluation |
 | `python -m triage_training summarize-splits` | `reports/split_variation.md` variation across data split seeds |
 | `python -m triage_training validate-model` | `reports/release_validation.md` release gate decision |
-| `python -m triage_training monitor-drift` | Drift check of a `/metrics` snapshot against the reference |
 
 All hyperparameters live in [configs/train.yaml](../configs/train.yaml). The loader
 rejects missing, unknown, or mistyped keys. `--seed` overrides the training seed for
