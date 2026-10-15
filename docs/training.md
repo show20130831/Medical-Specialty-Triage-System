@@ -57,7 +57,7 @@ descriptions between train and test. That row-level split can be built for compa
 git clone https://github.com/show20130831/Medical-Specialty-Triage-System.git
 cd Medical-Specialty-Triage-System
 python3 -m venv .venv && source .venv/bin/activate
-pip install "torch==2.14.0"            # Linux wheels from PyPI include CUDA
+pip install "torch==2.14.1"            # Linux wheels from PyPI include CUDA
 pip install -e ".[train,inference,finetune]"
 python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 ```

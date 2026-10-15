@@ -9,7 +9,7 @@ WORKDIR /app
 # PyTorch is the largest layer and changes rarely; installing it before copying the
 # source keeps code changes from re-downloading it.
 RUN python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir "torch==2.14.0" --index-url https://download.pytorch.org/whl/cpu \
+    && python -m pip install --no-cache-dir "torch==2.14.1" --index-url https://download.pytorch.org/whl/cpu \
     && useradd --create-home --uid 10001 app
 
 COPY pyproject.toml README.md ./

@@ -70,7 +70,7 @@ python -m venv .venv
 Install CPU inference dependencies:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install "torch==2.14.0" --index-url https://download.pytorch.org/whl/cpu
+.\.venv\Scripts\python.exe -m pip install "torch==2.14.1" --index-url https://download.pytorch.org/whl/cpu
 .\.venv\Scripts\python.exe -m pip install -e ".[inference]"
 ```
 
