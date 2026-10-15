@@ -62,5 +62,12 @@ services:
       - ./deploy/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./deploy/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
 
+  k6:
+    image: grafana/k6:1.1.0
+    profiles: [loadtest]
+    volumes:
+      - ./deploy/loadtest:/loadtest:ro
+      - ./outputs/loadtest:/results
+
 volumes:
   prometheus-data:
