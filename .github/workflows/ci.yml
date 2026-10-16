@@ -129,6 +129,9 @@ jobs:
 
       - name: Audit pinned dependencies
         run: |
+          # Upgrade the runner's preinstalled packaging tools first, so the audit reports
+          # the project's dependencies rather than the CI image's own tooling.
+          python -m pip install --upgrade pip "setuptools==83.0.0"
           python -m pip install "pip-audit==2.9.0"
           python -m pip install -e ".[train]"
           pip-audit --skip-editable --progress-spinner off
