@@ -71,7 +71,7 @@ timings and fixes:
 ```text
  Training (GPU)                    Serving (CPU, Docker)                    Operations
  ─────────────                     ─────────────────────                    ──────────
- MTSamples                         FastAPI ── /predict, /version            Prometheus ── 8 alert rules
+ MTSamples                         FastAPI ── /predict, /version            Prometheus ── 9 alert rules
    → clean, label, deduplicate       │        /health, /ready                 → Alertmanager → receiver
    → validated splits                ├─ PubMedBERT + calibration             Grafana dashboard
    → baseline + PubMedBERT           ├─ abstention threshold                Runbook, drills,
@@ -99,6 +99,7 @@ Local Python setup, API reference, and tests: [docs/development.md](docs/develop
 | Document | Contents |
 | --- | --- |
 | [Product design](docs/product-design-and-plan.md) | Scope, data, evaluation, architecture, risks |
+| [System design (Traditional Chinese)](docs/DESIGN.zh-TW.md) | Purpose, features, architecture diagrams, service choices |
 | [Training](docs/training.md) | Reproducible pipeline and data decisions |
 | [Validation and operations](docs/validation-and-operations.md) | Release gate, monitoring, runbook, change control |
 | [Operations plan](docs/operations-plan.md) | Monitoring design, SLOs, alerting, drills |

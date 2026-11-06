@@ -1,0 +1,20 @@
+flowchart TB
+    user["使用者瀏覽器<br/>Web client"]
+    bundle[("Model bundle（唯讀掛載）<br/>weights、tokenizer、calibration.json、<br/>monitoring_reference.json")]
+    subgraph api["FastAPI service（單一程序，CPU）"]
+        direction TB
+        validate["① 輸入檢查<br/>文字 ≤ 1,000 字元<br/>body ≤ 16 KB"]
+        predictor["② PubMedBERT 推論"]
+        calib["③ 溫度校準 T = 0.95<br/>信心 < 0.65 → uncertain"]
+        drift["④ Drift window<br/>只累計彙總計數"]
+        evaluator["Evaluator thread<br/>每 400 筆與參考分布比較 PSI"]
+        metrics["/metrics<br/>無文字、無各科數量"]
+        validate --> predictor --> calib
+        calib -. "非合成流量" .-> drift --> evaluator --> metrics
+    end
+    prom["Prometheus"]
+
+    user <-- "POST /predict<br/>回傳前三名科別、信心、uncertain" --> validate
+    bundle -- "啟動時載入並暖機" --> predictor
+    bundle -. "參考分布" .-> evaluator
+    prom -- "每 15 秒抓取" --> metrics

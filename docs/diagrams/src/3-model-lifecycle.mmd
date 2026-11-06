@@ -1,0 +1,21 @@
+flowchart TB
+    subgraph data["資料處理"]
+        direction LR
+        raw["MTSamples<br/>3,687 筆有標籤"] --> clean["清理與標籤對應<br/>40 科 → 8 群"]
+        clean --> dedup["去重複、解決標籤衝突<br/>移除 1,492 筆重複"]
+        dedup --> split["分層切分 1,270 / 318 / 398<br/>驗證沒有跨集合描述"]
+    end
+    subgraph model["訓練與驗證"]
+        direction LR
+        train["訓練<br/>TF-IDF baseline<br/>PubMedBERT 微調"] --> eval["統計評估<br/>bootstrap CI、McNemar<br/>3 seeds、6 切分<br/>溫度校準、拒答門檻"]
+        eval --> gate{"Release gate<br/>離線指標、43 個行為測試<br/>CPU 延遲"}
+        gate -- "FAIL" --> stop["不部署<br/>不放寬標準"]
+    end
+    subgraph ops["部署與維運"]
+        direction LR
+        archive[("私有模型倉庫<br/>revision")] --> deploy["部署<br/>/version 對照部署紀錄"]
+        deploy --> monitor["監控<br/>錯誤、延遲、drift"] --> respond["回應<br/>runbook、回滾"]
+    end
+    split --> train
+    gate -- "PASS" --> archive
+    respond -. "持續 drift ALERT<br/>調查後決定是否重訓" .-> train
