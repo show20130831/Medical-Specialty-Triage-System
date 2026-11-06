@@ -131,7 +131,10 @@ jobs:
         run: |
           # Upgrade the runner's preinstalled packaging tools first, so the audit reports
           # the project's dependencies rather than the CI image's own tooling.
-          python -m pip install --upgrade pip "setuptools==83.0.0"
-          python -m pip install "pip-audit==2.9.0"
+          python -m pip install --upgrade pip "setuptools==84.2.1"
           python -m pip install -e ".[train]"
-          pip-audit --skip-editable --progress-spinner off
+          # pip-audit runs from its own environment, so its dependencies are not audited
+          # as if they were the project's; PIPAPI_PYTHON_LOCATION points it at the project.
+          python -m venv "$RUNNER_TEMP/pip-audit"
+          "$RUNNER_TEMP/pip-audit/bin/python" -m pip install "pip-audit==2.9.0"
+          PIPAPI_PYTHON_LOCATION="$(command -v python)" "$RUNNER_TEMP/pip-audit/bin/pip-audit" --skip-editable --progress-spinner off
