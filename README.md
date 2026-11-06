@@ -71,7 +71,7 @@ timings and fixes:
 ```text
  Training (GPU)                    Serving (CPU, Docker)                    Operations
  ─────────────                     ─────────────────────                    ──────────
- MTSamples                         FastAPI ── /predict, /version            Prometheus ── 8 alert rules
+ MTSamples                         FastAPI ── /predict, /version            Prometheus ── 9 alert rules
    → clean, label, deduplicate       │        /health, /ready                 → Alertmanager → receiver
    → validated splits                ├─ PubMedBERT + calibration             Grafana dashboard
    → baseline + PubMedBERT           ├─ abstention threshold                Runbook, drills,
