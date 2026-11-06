@@ -2,32 +2,36 @@ flowchart TB
     subgraph dev["開發與訓練"]
         direction LR
         gh["GitHub repository<br/>main 受 ruleset 保護"]
-        ci["GitHub Actions<br/>測試、smoke test、映像建置、設定檢查"]
-        gpu["實驗室 Linux 伺服器<br/>RTX 4090（SSH）<br/>資料前處理、微調、評估"]
-        hf[("Hugging Face Hub<br/>私有模型倉庫<br/>每次上傳 = 一個 revision")]
+        ci["GitHub Actions<br/>CI 檢查"]
+        gpu["實驗室 Linux 伺服器<br/>RTX 4090（SSH）<br/>資料處理、微調、評估"]
         gh --> ci
-        gh -- "git clone 同一個 commit" --> gpu
-        gpu -- "封存模型 bundle" --> hf
+        gh -- "git clone" --> gpu
     end
 
-    subgraph host["服務主機：Docker Compose（所有連接埠只綁 127.0.0.1）"]
-        direction LR
-        api["api 容器<br/>FastAPI + PyTorch CPU<br/>非 root、healthcheck<br/>:8000"]
+    hf[("Hugging Face Hub<br/>私有模型倉庫<br/>每次上傳 = 一個 revision")]
+
+    subgraph host["服務主機：Docker Compose（對宿主機發布的連接埠綁定 127.0.0.1；容器之間經 Compose 網路）"]
+        direction TB
+        gate{"人工執行 CPU release gate<br/>validate-model"}
         models[("./models<br/>唯讀掛載")]
+        api["api 容器<br/>FastAPI + PyTorch CPU<br/>非 root、healthcheck、:8000"]
         subgraph mon["profile: monitoring"]
-            prom["Prometheus<br/>9 條告警規則<br/>:9090"]
+            direction LR
+            prom["Prometheus<br/>9 條告警規則、:9090"]
             am["Alertmanager<br/>:9093"]
             sink["alert-sink<br/>記錄告警"]
             graf["Grafana<br/>:3000"]
         end
-        k6["profile: loadtest<br/>k6"]
-        models --> api
+        k6["profile: loadtest<br/>k6 合成流量"]
+        gate -- "PASS：部署" --> models --> api
         prom -- "scrape /metrics" --> api
         prom --> am --> sink
         graf -- "query" --> prom
-        k6 -- "合成流量" --> api
+        k6 --> api
     end
 
-    hf -- "hf download --revision<br/>部署與回滾" --> models
+    gpu -- "① bundle 複製到服務主機" --> gate
+    gate -- "② PASS：封存 revision" --> hf
+    hf -- "③ 還原：hf download --revision" --> models
     browser["瀏覽器"] --> api
     browser --> graf

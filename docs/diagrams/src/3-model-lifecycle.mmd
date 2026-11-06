@@ -1,21 +1,28 @@
 flowchart TB
     subgraph data["資料處理"]
-        direction LR
-        raw["MTSamples<br/>3,687 筆有標籤"] --> clean["清理與標籤對應<br/>40 科 → 8 群"]
-        clean --> dedup["去重複、解決標籤衝突<br/>移除 1,492 筆重複"]
-        dedup --> split["分層切分 1,270 / 318 / 398<br/>驗證沒有跨集合描述"]
+        direction TB
+        raw["MTSamples 原始資料<br/>4,999 列"] --> clean["清理與標籤對應（40 科 → 8 群）<br/>3,687 列有標籤"]
+        clean --> group["以正規化描述分組<br/>2,195 個描述群組"]
+        group --> conflict["解決標籤衝突<br/>移除 209 個平手群組<br/>1,986 個描述"]
+        conflict --> split["分層切分 1,270 / 318 / 398<br/>驗證沒有跨集合描述"]
     end
     subgraph model["訓練與驗證"]
-        direction LR
-        train["訓練<br/>TF-IDF baseline<br/>PubMedBERT 微調"] --> eval["統計評估<br/>bootstrap CI、McNemar<br/>3 seeds、6 切分<br/>溫度校準、拒答門檻"]
-        eval --> gate{"Release gate<br/>離線指標、43 個行為測試<br/>CPU 延遲"}
-        gate -- "FAIL" --> stop["不部署<br/>不放寬標準"]
+        direction TB
+        train["訓練<br/>TF-IDF baseline、PubMedBERT 微調"]
+        fitval["驗證集（318 筆）<br/>擬合溫度、選拒答門檻"]
+        evaltest["測試集（398 筆）<br/>bootstrap CI、McNemar"]
+        report["report 產出<br/>評估報告、calibration.json、<br/>monitoring_reference.json"]
+        gate{"Release gate<br/>離線指標、43 個行為測試、CPU 延遲"}
+        fix["記錄原因 → 修正候選"]
+        train --> fitval --> evaltest --> report --> gate
+        gate -- "FAIL" --> fix -- "重跑" --> train
     end
     subgraph ops["部署與維運"]
-        direction LR
-        archive[("私有模型倉庫<br/>revision")] --> deploy["部署<br/>/version 對照部署紀錄"]
-        deploy --> monitor["監控<br/>錯誤、延遲、drift"] --> respond["回應<br/>runbook、回滾"]
+        direction TB
+        archive[("私有模型倉庫 revision")] --> deploy["部署<br/>/version 對照部署紀錄"]
+        deploy --> monitor["監控<br/>錯誤、延遲、drift"]
+        monitor --> investigate["人工調查"]
     end
     split --> train
     gate -- "PASS" --> archive
-    respond -. "持續 drift ALERT<br/>調查後決定是否重訓" .-> train
+    investigate -. "視調查結果決定是否重訓" .-> train

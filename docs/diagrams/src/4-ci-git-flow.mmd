@@ -1,14 +1,21 @@
 flowchart LR
-    branch["短期分支<br/>feature/* fix/* docs/* ci/*"] --> pr["Pull Request<br/>說明目的、變更、測試"]
-    pr --> checks
-    subgraph checks["GitHub Actions（只有讀取權限）"]
+    branch["短期分支"] --> pr["Pull Request"]
+    pr --> required
+    pr --> other
+    subgraph required["必過檢查"]
         direction TB
-        t1["API tests<br/>Ubuntu + Windows"]
-        t2["Service smoke test<br/>tiny BERT bundle"]
-        t3["Docker build<br/>非 root、/health、/ready"]
-        t4["Monitoring config<br/>promtool、amtool"]
-        t5["pip-audit<br/>僅提示，不阻擋"]
+        t1["API tests Ubuntu"]
+        t2["API tests Windows"]
+        t3["Smoke test"]
+        t4["Docker build"]
     end
-    checks --> rule{"Ruleset<br/>必要檢查通過<br/>分支與 main 同步"}
-    rule -- "通過" --> main["merge 到 main<br/>刪除分支"]
-    rule -- "落後 main" --> update["update branch<br/>重新執行檢查"] --> checks
+    subgraph other["其他工作（不阻擋）"]
+        direction TB
+        t5["Monitoring config"]
+        t6["pip-audit（advisory）"]
+    end
+    required --> rule{"Ruleset"}
+    rule -- "檢查失敗" --> fix["修正後推送"] --> required
+    rule -- "分支落後 main" --> update["更新分支"] --> required
+    rule -- "通過" --> main["合併到 main"]
+    main -. "推送到 main 也觸發 CI" .-> required

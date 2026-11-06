@@ -1,20 +1,27 @@
 flowchart TB
-    user["使用者瀏覽器<br/>Web client"]
-    bundle[("Model bundle（唯讀掛載）<br/>weights、tokenizer、calibration.json、<br/>monitoring_reference.json")]
+    user["使用者瀏覽器 / API 呼叫端"]
     subgraph api["FastAPI service（單一程序，CPU）"]
         direction TB
-        validate["① 輸入檢查<br/>文字 ≤ 1,000 字元<br/>body ≤ 16 KB"]
-        predictor["② PubMedBERT 推論"]
-        calib["③ 溫度校準 T = 0.95<br/>信心 < 0.65 → uncertain"]
-        drift["④ Drift window<br/>只累計彙總計數"]
-        evaluator["Evaluator thread<br/>每 400 筆與參考分布比較 PSI"]
-        metrics["/metrics<br/>無文字、無各科數量"]
-        validate --> predictor --> calib
-        calib -. "非合成流量" .-> drift --> evaluator --> metrics
+        size["① 請求大小檢查（解析前）<br/>Content-Length：缺少 411、不合法 400、> 16 KiB 413"]
+        schema["② Pydantic 驗證<br/>空白或 > 1,000 字元 → 422"]
+        predictor["③ PubMedBERT 推論"]
+        calib["④ 溫度校準與門檻<br/>現行 bundle：T = 0.95、門檻 0.65"]
+        resp["⑤ HTTP 200<br/>label、score、top 3、uncertain"]
+        size --> schema --> predictor --> calib --> resp
+        subgraph mon["監控支線（不影響回應）"]
+            direction TB
+            counts["記憶體中的彙總計數<br/>只計成功且非合成的預測"]
+            evaluator["Evaluator thread<br/>滿窗（Compose 設定 400 筆）<br/>計算 PSI 與不確定比例"]
+            metrics["/metrics<br/>無文字、無各科數量"]
+            counts -- "滿窗" --> evaluator --> metrics
+        end
+        calib -.-> counts
     end
+    bundle[("Model bundle（唯讀掛載）<br/>weights、tokenizer、calibration.json、<br/>monitoring_reference.json")]
     prom["Prometheus"]
 
-    user <-- "POST /predict<br/>回傳前三名科別、信心、uncertain" --> validate
-    bundle -- "啟動時載入並暖機" --> predictor
+    user -- "POST /predict" --> size
+    resp --> user
+    bundle -- "背景預載與暖機<br/>（Compose 啟用）" --> predictor
     bundle -. "參考分布" .-> evaluator
     prom -- "每 15 秒抓取" --> metrics
